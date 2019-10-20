@@ -62,7 +62,11 @@ void sync_new_event(std::string roomId, json_t* event) {
 		renderRooms = true;
 	}
 	json_t* eventType = json_object_get(event, "type");
-	std::string eventTypeStr = json_string_value(eventType);
+	const char* eventTypeCStr = json_string_value(eventType);
+	if (!eventTypeCStr) {
+		return;
+	}
+	std::string eventTypeStr = eventTypeCStr;
 	if (eventTypeStr != "m.room.message") {
 		return;
 	}
@@ -74,12 +78,20 @@ void sync_new_event(std::string roomId, json_t* event) {
 	if (!body) {
 		return;
 	}
-	std::string bodyStr = json_string_value(body);
+	const char* bodyCStr = json_string_value(body);
+	if (!bodyCStr) {
+		return;
+	}
+	std::string bodyStr = bodyCStr;
 	json_t* sender = json_object_get(event, "sender");
 	if (!sender) {
 		return;
 	}
-	std::string senderStr = json_string_value(sender);
+	const char* senderCStr = json_string_value(sender);
+	if (!senderCStr) {
+		return;
+	}
+	std::string senderStr = senderCStr;
 	Message msg = {
 		sender: senderStr,
 		body: bodyStr,
