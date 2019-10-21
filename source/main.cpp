@@ -1,13 +1,6 @@
-/*
-	Hello World example made by Aurelio Mannara for ctrulib
-	This code was modified for the last time on: 12/12/2014 21:00 UTC+1
-*/
-
 #include <3ds.h>
 #include <stdio.h>
-#include <malloc.h>
 #include <matrixclient.h>
-#include <curl/curl.h>
 #include <jansson.h>
 
 #include <string>
@@ -176,8 +169,12 @@ int roomPickerTop = 0;
 int roomPickerItem = 0;
 void roomPicker() {
 	u32 kDown = hidKeysDown();
-	if (kDown & KEY_DOWN) {
-		roomPickerItem++;
+	if (kDown & KEY_DOWN || kDown & KEY_RIGHT) {
+		if (kDown & KEY_DOWN) {
+			roomPickerItem++;
+		} else {
+			roomPickerItem += 30;
+		}
 		if (roomPickerItem >= joinedRooms.size()) {
 			roomPickerItem = joinedRooms.size() - 1;
 		}
@@ -186,8 +183,12 @@ void roomPicker() {
 		}
 		renderRooms = true;
 	}
-	if (kDown & KEY_UP) {
-		roomPickerItem--;
+	if (kDown & KEY_UP || kDown & KEY_LEFT) {
+		if (kDown & KEY_UP) {
+			roomPickerItem--;
+		} else {
+			roomPickerItem -= 30;
+		}
 		if (roomPickerItem < 0) {
 			roomPickerItem = 0;
 		}
@@ -263,8 +264,7 @@ void displayRoom() {
 	printf_bottom("\nPress A to send a message\nPress B to go back\n");
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char** argv) {
 	gfxInitDefault();
 	
 	topScreenConsole = new PrintConsole;
