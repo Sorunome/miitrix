@@ -181,7 +181,7 @@ void roomPicker() {
 		if (roomPickerItem >= joinedRooms.size()) {
 			roomPickerItem = joinedRooms.size() - 1;
 		}
-		while (roomPickerItem - roomPickerTop > 30) {
+		while (roomPickerItem - roomPickerTop > 29) {
 			roomPickerTop++;
 		}
 		renderRooms = true;
@@ -211,6 +211,7 @@ void roomPicker() {
 	if (!renderRooms) {
 		return;
 	}
+//	printf_top("%d %d\n", roomPickerTop, roomPickerItem);
 	printf_bottom("\x1b[2J");
 	renderRooms = false;
 	int i = 0;
@@ -239,7 +240,6 @@ void displayRoom() {
 		state = State::roomPicking;
 		renderRooms = true;
 		printf_top("==================================================\n");
-		roomPickerTop = roomPickerItem = 0;
 		return;
 	}
 	if (kDown & KEY_A) {
