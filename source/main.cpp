@@ -6,6 +6,8 @@
 #include <string>
 #include <string.h>
 #include <map>
+#include <vector>
+#include <queue>
 
 PrintConsole* topScreenConsole;
 PrintConsole* bottomScreenConsole;
@@ -23,6 +25,7 @@ std::map<std::string, std::string> roomNames;
 bool renderRooms = true;
 bool renderRoomDisplay = true;
 std::string currentRoom;
+std::queue<Message> messageDisplayQueue;
 
 enum struct State {
 	roomPicking,
@@ -94,7 +97,7 @@ void sync_new_event(std::string roomId, json_t* event) {
 	}
 	messages[roomId].push_back(msg);
 	if (state == State::roomDisplaying && roomId == currentRoom) {
-		printMsg(msg);
+		messageDisplayQueue.push(msg);
 	}
 }
 
@@ -157,6 +160,7 @@ void loadRoom(std::string roomId) {
 	state = State::roomDisplaying;
 	currentRoom = roomId;
 	roomNames.clear();
+	messageDisplayQueue.empty();
 	printf_top("==================================================\n");
 	if (messages.count(roomId) != 0) {
 		for (auto const& msg: messages[roomId]) {
@@ -173,7 +177,7 @@ void roomPicker() {
 		if (kDown & KEY_DOWN) {
 			roomPickerItem++;
 		} else {
-			roomPickerItem += 30;
+			roomPickerItem += 25;
 		}
 		if (roomPickerItem >= joinedRooms.size()) {
 			roomPickerItem = joinedRooms.size() - 1;
@@ -187,7 +191,7 @@ void roomPicker() {
 		if (kDown & KEY_UP) {
 			roomPickerItem--;
 		} else {
-			roomPickerItem -= 30;
+			roomPickerItem -= 25;
 		}
 		if (roomPickerItem < 0) {
 			roomPickerItem = 0;
@@ -215,13 +219,14 @@ void roomPicker() {
 //	printf_top("%d %d\n", roomPickerTop, roomPickerItem);
 	printf_bottom("\x1b[2J");
 	renderRooms = false;
+	printf_bottom("\x1b[%d;1H>", roomPickerItem - roomPickerTop + 1);
 	int i = 0;
 	for (auto const& room : joinedRooms) {
 		if (i < roomPickerTop) {
 			i++;
 			continue;
 		}
-		if (i > roomPickerTop + 30) {
+		if (i > roomPickerTop + 29) {
 			break;
 		}
 		auto roomId = room.first;
@@ -232,10 +237,14 @@ void roomPicker() {
 		printf_bottom("\x1b[%d;2H%s", i - roomPickerTop + 1, name);
 		i++;
 	}
-	printf_bottom("\x1b[%d;1H>", roomPickerItem - roomPickerTop + 1);
 }
 
 void displayRoom() {
+	while (messageDisplayQueue.size()) {
+		Message msg = messageDisplayQueue.front();
+		messageDisplayQueue.pop();
+		printMsg(msg);
+	}
 	u32 kDown = hidKeysDown();
 	if (kDown & KEY_B) {
 		state = State::roomPicking;
@@ -314,7 +323,6 @@ int main(int argc, char** argv) {
 	std::string userId = client->getUserId();
 	printf_top("Logged in as %s\n", userId.c_str());
 	printf_top("Loading channel list...\n");
-
 
 	while (aptMainLoop()) {
 		//printf("%d\n", i++);
