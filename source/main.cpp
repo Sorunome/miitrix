@@ -8,6 +8,7 @@
 #include <map>
 #include <vector>
 #include <queue>
+#include "store.h"
 
 PrintConsole* topScreenConsole;
 PrintConsole* bottomScreenConsole;
@@ -33,7 +34,8 @@ enum struct State {
 };
 State state = State::roomPicking;
 
-Matrix::Client* client = NULL;
+Matrix::Client* client;
+Store store;
 
 void printMsg(Message msg) {
 	std::string displayname = msg.sender;
@@ -273,19 +275,27 @@ void displayRoom() {
 	printf_bottom("\nPress A to send a message\nPress B to go back\n");
 }
 
-int main(int argc, char** argv) {
-	gfxInitDefault();
-	
-	topScreenConsole = new PrintConsole;
-	bottomScreenConsole = new PrintConsole;
-	consoleInit(GFX_TOP, topScreenConsole);
-	consoleInit(GFX_BOTTOM, bottomScreenConsole);
-
-	printf_top("Miitrix v0.0.0\nPress A to log in\n");
+bool setupAcc() {
+	std::string homeserverUrl = store.getVar("hsUrl");
+	std::string token = store.getVar("token");
+	std::string userId = "";
+	if (homeserverUrl != "" || token != "") {
+		client = new Matrix::Client(homeserverUrl, token);
+		userId = client->getUserId();
+		if (userId != "") {
+			printf_top("Logged in as %s\n", userId.c_str());
+			return true;
+		}
+		free(client);
+		client = NULL;
+		printf_top("Invalid token\n");
+	}
+	printf_top("Press A to log in\n");
 	while(aptMainLoop()) {
 		hidScanInput();
 		u32 kDown = hidKeysDown();
 		if (kDown & KEY_A) break;
+		if (kDown & KEY_START) return false;
 		// Flush and swap framebuffers
 		gfxFlushBuffers();
 		gfxSwapBuffers();
@@ -293,13 +303,9 @@ int main(int argc, char** argv) {
 		gspWaitForVBlank();
 	}
 
-	std::string homeserverUrl = getHomeserverUrl();
+	homeserverUrl = getHomeserverUrl();
 
 	client = new Matrix::Client(homeserverUrl);
-	client->setEventCallback(&sync_new_event);
-//	client->setInviteRoomCallback(&sync_invite_room);
-	client->setLeaveRoomCallback(&sync_leave_room);
-	client->setRoomInfoCallback(&sync_room_info);
 
 	std::string username = getUsername();
 	std::string password = getPassword();
@@ -316,12 +322,43 @@ int main(int argc, char** argv) {
 			//Wait for VBlank
 			gspWaitForVBlank();
 		}
+		return false;
+	}
+	userId = client->getUserId();
+	printf_top("Logged in as %s\n", userId.c_str());
+	store.setVar("hsUrl", homeserverUrl);
+	store.setVar("token", client->getToken());
+	return true;
+}
+
+void logout() {
+	printf_top("Logging out...");
+	client->logout();
+	store.delVar("token");
+	store.delVar("hsUrl");
+}
+
+int main(int argc, char** argv) {
+	gfxInitDefault();
+	
+	topScreenConsole = new PrintConsole;
+	bottomScreenConsole = new PrintConsole;
+	consoleInit(GFX_TOP, topScreenConsole);
+	consoleInit(GFX_BOTTOM, bottomScreenConsole);
+
+	store.init();
+
+	printf_top("Miitrix v0.0.0\n");
+	
+	if (!setupAcc()){
 		gfxExit();
 		return 0;
 	}
+	client->setEventCallback(&sync_new_event);
+	client->setLeaveRoomCallback(&sync_leave_room);
+	client->setRoomInfoCallback(&sync_room_info);
+	
 	client->startSyncLoop();
-	std::string userId = client->getUserId();
-	printf_top("Logged in as %s\n", userId.c_str());
 	printf_top("Loading channel list...\n");
 
 	while (aptMainLoop()) {
@@ -338,8 +375,12 @@ int main(int argc, char** argv) {
 		//hidKeysDown returns information about which buttons have been just pressed (and they weren't in the previous frame)
 		u32 kDown = hidKeysDown();
 
-		if (kDown & KEY_START) break; // break in order to return to hbmenu
-
+		if (kDown & KEY_START) {
+			if (hidKeysHeld() & KEY_B) {
+				logout();
+			}
+			break; // break in order to return to hbmenu
+		}
 		// Flush and swap framebuffers
 		gfxFlushBuffers();
 		gfxSwapBuffers();
@@ -347,9 +388,8 @@ int main(int argc, char** argv) {
 		//Wait for VBlank
 		gspWaitForVBlank();
 	}
-//	client.stopSyncLoop();
+//	client->stopSyncLoop();
 
-	client->logout();
 	gfxExit();
 	return 0;
 }
