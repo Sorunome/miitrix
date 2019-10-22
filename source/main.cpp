@@ -19,6 +19,7 @@ PrintConsole* bottomScreenConsole;
 struct Message {
 	std::string sender;
 	std::string body;
+	std::string msgtype;
 };
 
 struct ExtendedRoomInfo {
@@ -63,7 +64,13 @@ void printMsg(Message msg) {
 	if (roomNames[msg.sender] != "") {
 		displayname = roomNames[msg.sender];
 	}
-	printf_top("\x1b[33m<%s>\x1b[37m %s\n", displayname.c_str(), msg.body.c_str());
+	if (msg.msgtype == "m.emote") {
+		printf_top("\x1b[33m*%s\x1b[0m %s\n", displayname.c_str(), msg.body.c_str());
+	} else if (msg.msgtype == "m.notice") {
+		printf_top("\x1b[33m<%s>\x1b[34m %s\x1b[0m\n", displayname.c_str(), msg.body.c_str());
+	} else {
+		printf_top("\x1b[33m<%s>\x1b[0m %s\n", displayname.c_str(), msg.body.c_str());
+	}
 }
 
 int joinedRoomIndex(std::string roomId) {
@@ -122,6 +129,15 @@ void sync_new_event(std::string roomId, json_t* event) {
 		return;
 	}
 	std::string bodyStr = bodyCStr;
+	json_t* msgtype = json_object_get(content, "msgtype");
+	if (!msgtype) {
+		return;
+	}
+	const char* msgtypeCStr = json_string_value(msgtype);
+	if (!msgtypeCStr) {
+		return;
+	}
+	std::string msgtypeStr = msgtypeCStr;
 	json_t* sender = json_object_get(event, "sender");
 	if (!sender) {
 		return;
@@ -134,6 +150,7 @@ void sync_new_event(std::string roomId, json_t* event) {
 	Message msg = {
 		sender: senderStr,
 		body: bodyStr,
+		msgtype: msgtypeStr,
 	};
 	if (messages.count(roomId) == 0) {
 		messages[roomId] = std::vector<Message>();
