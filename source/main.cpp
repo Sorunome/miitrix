@@ -8,6 +8,7 @@
 #include <map>
 #include <vector>
 #include <queue>
+#include <bits/stdc++.h> 
 #include "store.h"
 
 PrintConsole* topScreenConsole;
@@ -20,9 +21,18 @@ struct Message {
 	std::string body;
 };
 
-std::map<std::string, Matrix::RoomInfo> joinedRooms;
+struct ExtendedRoomInfo {
+	std::string name;
+	std::string topic;
+	std::string avatarUrl;
+	std::string roomId;
+	u32 lastMsg;
+};
+
+std::vector<ExtendedRoomInfo> joinedRooms;
 std::map<std::string, std::vector<Message>> messages;
 std::map<std::string, std::string> roomNames;
+bool sortRooms = false;
 bool renderRooms = true;
 bool renderRoomDisplay = true;
 std::string currentRoom;
@@ -37,6 +47,13 @@ State state = State::roomPicking;
 Matrix::Client* client;
 Store store;
 
+std::string getRoomName(ExtendedRoomInfo room) {
+	if (room.name != "") {
+		return room.name;
+	}
+	return room.roomId;
+}
+
 void printMsg(Message msg) {
 	std::string displayname = msg.sender;
 	if (roomNames.count(msg.sender) == 0) {
@@ -49,14 +66,29 @@ void printMsg(Message msg) {
 	printf_top("<%s> %s\n", displayname.c_str(), msg.body.c_str());
 }
 
+int joinedRoomIndex(std::string roomId) {
+	for (u32 i = 0; i != joinedRooms.size(); i++) {
+		if (joinedRooms[i].roomId == roomId) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+bool joinedRoomsSortFunc(ExtendedRoomInfo r1, ExtendedRoomInfo r2) {
+	return r1.lastMsg > r2.lastMsg;
+}
+
 void sync_new_event(std::string roomId, json_t* event) {
-	if (joinedRooms.count(roomId) == 0) {
+	if (joinedRoomIndex(roomId) == -1) {
 		// room isn't found, let's fetch it
-		joinedRooms[roomId] = {
-			name: roomId,
+		joinedRooms.push_back({
+			name: "",
 			topic: "",
 			avatarUrl: "",
-		};
+			roomId: roomId,
+			lastMsg: 0,
+		});
 		renderRooms = true;
 	}
 	json_t* eventType = json_object_get(event, "type");
@@ -67,6 +99,15 @@ void sync_new_event(std::string roomId, json_t* event) {
 	std::string eventTypeStr = eventTypeCStr;
 	if (eventTypeStr != "m.room.message") {
 		return;
+	}
+	json_t* originServerTs = json_object_get(event, "origin_server_ts");
+	if (!originServerTs) {
+		return;
+	}
+	int ix = joinedRoomIndex(roomId);
+	if (ix != -1) {
+		joinedRooms[ix].lastMsg = json_integer_value(originServerTs);
+		sortRooms = true;
 	}
 	json_t* content = json_object_get(event, "content");
 	if (!content) {
@@ -104,12 +145,27 @@ void sync_new_event(std::string roomId, json_t* event) {
 }
 
 void sync_leave_room(std::string roomId, json_t* event) {
-	joinedRooms.erase(roomId);
+	int ix = joinedRoomIndex(roomId);
+	if (ix != -1) {
+		joinedRooms.erase(joinedRooms.begin() + ix);
+	}
 	renderRooms = true;
 }
 
 void sync_room_info(std::string roomId, Matrix::RoomInfo roomInfo) {
-	joinedRooms[roomId] = roomInfo;
+	ExtendedRoomInfo extendedRoomInfo = {
+		name: roomInfo.name,
+		topic: roomInfo.topic,
+		avatarUrl: roomInfo.avatarUrl,
+		roomId: roomId,
+		lastMsg: 0,
+	};
+	int ix = joinedRoomIndex(roomId);
+	if (ix == -1) {
+		joinedRooms.push_back(extendedRoomInfo);
+	} else {
+		joinedRooms[ix] = extendedRoomInfo;
+	}
 	renderRooms = true;
 }
 
@@ -204,16 +260,13 @@ void roomPicker() {
 		renderRooms = true;
 	}
 	if (kDown & KEY_A) {
-		int i = 0;
-		for (auto const& room : joinedRooms) {
-			auto roomId = room.first;
-			auto info = room.second;
-			if (i == roomPickerItem) {
-				loadRoom(roomId);
-				return;
-			}
-			i++;
-		}
+		loadRoom(joinedRooms[roomPickerItem].roomId);
+		return;
+	}
+	if (sortRooms) {
+		sort(joinedRooms.begin(), joinedRooms.end(), joinedRoomsSortFunc);
+		renderRooms = true;
+		sortRooms = false;
 	}
 	if (!renderRooms) {
 		return;
@@ -222,22 +275,15 @@ void roomPicker() {
 	printf_bottom("\x1b[2J");
 	renderRooms = false;
 	printf_bottom("\x1b[%d;1H>", roomPickerItem - roomPickerTop + 1);
-	int i = 0;
-	for (auto const& room : joinedRooms) {
-		if (i < roomPickerTop) {
-			i++;
-			continue;
-		}
-		if (i > roomPickerTop + 29) {
+	for (u8 i = 0; i < 30; i++) {
+		if (i + roomPickerTop >= joinedRooms.size()) {
 			break;
 		}
-		auto roomId = room.first;
-		auto info = room.second;
+		ExtendedRoomInfo room = joinedRooms[i + roomPickerTop];
 		char name[40];
-		strncpy(name, info.name.c_str(), 40);
+		strncpy(name, getRoomName(room).c_str(), 39);
 		name[39] = '\0';
-		printf_bottom("\x1b[%d;2H%s", i - roomPickerTop + 1, name);
-		i++;
+		printf_bottom("\x1b[%d;2H%s", i + 1, name);
 	}
 }
 
@@ -265,12 +311,13 @@ void displayRoom() {
 	}
 	printf_bottom("\x1b[2J");
 	renderRoomDisplay = false;
-	if (joinedRooms.count(currentRoom) == 0) {
+	int ix = joinedRoomIndex(currentRoom);
+	if (ix == -1) {
 		printf_bottom("Something went really wrong...");
 		return;
 	}
-	auto room = joinedRooms[currentRoom];
-	printf_bottom("Room name: %s\n", room.name.c_str());
+	ExtendedRoomInfo room = joinedRooms[ix];
+	printf_bottom("Room name: %s\n", getRoomName(room).c_str());
 	printf_bottom("Room topic: %s\n", room.topic.c_str());
 	printf_bottom("\nPress A to send a message\nPress B to go back\n");
 }
@@ -286,7 +333,7 @@ bool setupAcc() {
 			printf_top("Logged in as %s\n", userId.c_str());
 			return true;
 		}
-		free(client);
+		delete client;
 		client = NULL;
 		printf_top("Invalid token\n");
 	}
