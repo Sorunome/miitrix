@@ -63,7 +63,7 @@ void printMsg(Message msg) {
 	if (roomNames[msg.sender] != "") {
 		displayname = roomNames[msg.sender];
 	}
-	printf_top("<%s> %s\n", displayname.c_str(), msg.body.c_str());
+	printf_top("\x1b[33m<%s>\x1b[37m %s\n", displayname.c_str(), msg.body.c_str());
 }
 
 int joinedRoomIndex(std::string roomId) {
