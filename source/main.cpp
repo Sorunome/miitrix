@@ -10,17 +10,11 @@
 #include <queue>
 #include <bits/stdc++.h> 
 #include "store.h"
+#include "message.h"
+#include "main.h"
 
 PrintConsole* topScreenConsole;
 PrintConsole* bottomScreenConsole;
-#define printf_top(f_, ...) do {consoleSelect(topScreenConsole);printf((f_), ##__VA_ARGS__);} while(0)
-#define printf_bottom(f_, ...) do {consoleSelect(bottomScreenConsole);printf((f_), ##__VA_ARGS__);} while(0)
-
-struct Message {
-	std::string sender;
-	std::string body;
-	std::string msgtype;
-};
 
 struct ExtendedRoomInfo {
 	std::string name;
@@ -55,22 +49,16 @@ std::string getRoomName(ExtendedRoomInfo room) {
 	return room.roomId;
 }
 
-void printMsg(Message msg) {
-	std::string displayname = msg.sender;
-	if (roomNames.count(msg.sender) == 0) {
-		Matrix::UserInfo user = client->getUserInfo(msg.sender, currentRoom);
-		roomNames[msg.sender] = user.displayname;
+std::string getDisplayName(std::string mxid) {
+	std::string displayname = mxid;
+	if (roomNames.count(mxid) == 0) {
+		Matrix::UserInfo user = client->getUserInfo(mxid, currentRoom);
+		roomNames[mxid] = user.displayname;
 	}
-	if (roomNames[msg.sender] != "") {
-		displayname = roomNames[msg.sender];
+	if (roomNames[mxid] != "") {
+		displayname = roomNames[mxid];
 	}
-	if (msg.msgtype == "m.emote") {
-		printf_top("\x1b[33m*%s\x1b[0m %s\n", displayname.c_str(), msg.body.c_str());
-	} else if (msg.msgtype == "m.notice") {
-		printf_top("\x1b[33m<%s>\x1b[34m %s\x1b[0m\n", displayname.c_str(), msg.body.c_str());
-	} else {
-		printf_top("\x1b[33m<%s>\x1b[0m %s\n", displayname.c_str(), msg.body.c_str());
-	}
+	return displayname;
 }
 
 int joinedRoomIndex(std::string roomId) {
@@ -98,64 +86,24 @@ void sync_new_event(std::string roomId, json_t* event) {
 		});
 		renderRooms = true;
 	}
-	json_t* eventType = json_object_get(event, "type");
-	const char* eventTypeCStr = json_string_value(eventType);
-	if (!eventTypeCStr) {
+	Message msg = messageFromEvent(event);
+	if (msg.type == MessageType::invalid) {
 		return;
 	}
-	std::string eventTypeStr = eventTypeCStr;
-	if (eventTypeStr != "m.room.message") {
-		return;
+	if (msg.type == MessageType::m_room_message) {
+		int ix = joinedRoomIndex(roomId);
+		if (ix != -1) {
+			joinedRooms[ix].lastMsg = msg.originServerTs;
+			sortRooms = true;
+		}
 	}
-	json_t* originServerTs = json_object_get(event, "origin_server_ts");
-	if (!originServerTs) {
-		return;
-	}
-	int ix = joinedRoomIndex(roomId);
-	if (ix != -1) {
-		joinedRooms[ix].lastMsg = json_integer_value(originServerTs);
-		sortRooms = true;
-	}
-	json_t* content = json_object_get(event, "content");
-	if (!content) {
-		return;
-	}
-	json_t* body = json_object_get(content, "body");
-	if (!body) {
-		return;
-	}
-	const char* bodyCStr = json_string_value(body);
-	if (!bodyCStr) {
-		return;
-	}
-	std::string bodyStr = bodyCStr;
-	json_t* msgtype = json_object_get(content, "msgtype");
-	if (!msgtype) {
-		return;
-	}
-	const char* msgtypeCStr = json_string_value(msgtype);
-	if (!msgtypeCStr) {
-		return;
-	}
-	std::string msgtypeStr = msgtypeCStr;
-	json_t* sender = json_object_get(event, "sender");
-	if (!sender) {
-		return;
-	}
-	const char* senderCStr = json_string_value(sender);
-	if (!senderCStr) {
-		return;
-	}
-	std::string senderStr = senderCStr;
-	Message msg = {
-		sender: senderStr,
-		body: bodyStr,
-		msgtype: msgtypeStr,
-	};
 	if (messages.count(roomId) == 0) {
 		messages[roomId] = std::vector<Message>();
 	}
 	messages[roomId].push_back(msg);
+	while (messages[roomId].size() > 30) {
+		messages[roomId].erase(messages[roomId].begin());
+	}
 	if (state == State::roomDisplaying && roomId == currentRoom) {
 		messageDisplayQueue.push(msg);
 	}
@@ -239,7 +187,7 @@ void loadRoom(std::string roomId) {
 	printf_top("==================================================\n");
 	if (messages.count(roomId) != 0) {
 		for (auto const& msg: messages[roomId]) {
-			printMsg(msg);
+			printMessage(msg);
 		}
 	}
 }
@@ -308,7 +256,7 @@ void displayRoom() {
 	while (messageDisplayQueue.size()) {
 		Message msg = messageDisplayQueue.front();
 		messageDisplayQueue.pop();
-		printMsg(msg);
+		printMessage(msg);
 	}
 	u32 kDown = hidKeysDown();
 	if (kDown & KEY_B) {
