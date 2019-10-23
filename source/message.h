@@ -55,20 +55,27 @@ struct MessageRoomAvatar {
 	std::string avatarUrl;
 };
 
-struct Message {
+class Message {
+private:
 	MessageType type;
 	std::string sender;
 	std::string eventId;
 	u32 originServerTs;
 
-	MessageRoomMessage message;
-	MessageRoomMember member;
-	MessageRoomName roomName;
-	MessageRoomTopic roomTopic;
-	MessageRoomAvatar roomAvatar;
+	union {
+		MessageRoomMessage* message;
+		MessageRoomMember* member;
+		MessageRoomName* roomName;
+		MessageRoomTopic* roomTopic;
+		MessageRoomAvatar* roomAvatar;
+	};
+public:
+	Message(json_t* event);
+	~Message();
+	void print();
+	bool isValid();
+	bool isMessage();
+	u32 getOriginServerTs();
 };
-
-Message messageFromEvent(json_t* event);
-void printMessage(Message msg);
 
 #endif // _MESSAGE_H_

@@ -25,13 +25,13 @@ struct ExtendedRoomInfo {
 };
 
 std::vector<ExtendedRoomInfo> joinedRooms;
-std::map<std::string, std::vector<Message>> messages;
+std::map<std::string, std::vector<Message*>> messages;
 std::map<std::string, std::string> roomNames;
 bool sortRooms = false;
 bool renderRooms = true;
 bool renderRoomDisplay = true;
 std::string currentRoom;
-std::queue<Message> messageDisplayQueue;
+std::queue<Message*> messageDisplayQueue;
 
 enum struct State {
 	roomPicking,
@@ -86,22 +86,24 @@ void sync_new_event(std::string roomId, json_t* event) {
 		});
 		renderRooms = true;
 	}
-	Message msg = messageFromEvent(event);
-	if (msg.type == MessageType::invalid) {
+	Message* msg = new Message(event);
+	if (!msg->isValid()) {
+		delete msg;
 		return;
 	}
-	if (msg.type == MessageType::m_room_message) {
+	if (msg->isMessage()) {
 		int ix = joinedRoomIndex(roomId);
 		if (ix != -1) {
-			joinedRooms[ix].lastMsg = msg.originServerTs;
+			joinedRooms[ix].lastMsg = msg->getOriginServerTs();
 			sortRooms = true;
 		}
 	}
 	if (messages.count(roomId) == 0) {
-		messages[roomId] = std::vector<Message>();
+		messages[roomId] = std::vector<Message*>();
 	}
 	messages[roomId].push_back(msg);
 	while (messages[roomId].size() > 30) {
+		delete messages[roomId][0];
 		messages[roomId].erase(messages[roomId].begin());
 	}
 	if (state == State::roomDisplaying && roomId == currentRoom) {
@@ -187,7 +189,7 @@ void loadRoom(std::string roomId) {
 	printf_top("==================================================\n");
 	if (messages.count(roomId) != 0) {
 		for (auto const& msg: messages[roomId]) {
-			printMessage(msg);
+			msg->print();
 		}
 	}
 }
@@ -254,9 +256,9 @@ void roomPicker() {
 
 void displayRoom() {
 	while (messageDisplayQueue.size()) {
-		Message msg = messageDisplayQueue.front();
+		Message* msg = messageDisplayQueue.front();
 		messageDisplayQueue.pop();
-		printMessage(msg);
+		msg->print();
 	}
 	u32 kDown = hidKeysDown();
 	if (kDown & KEY_B) {

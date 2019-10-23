@@ -3,65 +3,66 @@
 #include "util.h"
 #include "main.h"
 
-Message messageFromEvent(json_t* event) {
-	Message msg;
-	msg.type = MessageType::invalid;
-	const char* type = json_object_get_string_value(event, "type");
-	const char* sender = json_object_get_string_value(event, "sender");
-	const char* eventId = json_object_get_string_value(event, "event_id");
-	json_t* originServerTs = json_object_get(event, "origin_server_ts");
+Message::Message(json_t* event) {
+	type = MessageType::invalid;
+	const char* typeMaybe = json_object_get_string_value(event, "type");
+	const char* senderMaybe = json_object_get_string_value(event, "sender");
+	const char* eventIdMaybe = json_object_get_string_value(event, "event_id");
+	json_t* originServerJson = json_object_get(event, "origin_server_ts");
 	json_t* content = json_object_get(event, "content");
-	if (!type || !sender || !eventId || !originServerTs || !content) {
+	if (!typeMaybe || !senderMaybe || !eventIdMaybe || !originServerJson || !content) {
 		// invalid event
-		return msg;
+		return;
 	}
-	if (strcmp(type, "m.room.message") == 0) {
-		msg.type = MessageType::m_room_message;
-	} else if (strcmp(type, "m.room.member") == 0) {
-		msg.type = MessageType::m_room_member;
-	} else if (strcmp(type, "m.room.name") == 0) {
-		msg.type = MessageType::m_room_name;
-	} else if (strcmp(type, "m.room.topic") == 0) {
-		msg.type = MessageType::m_room_topic;
-	} else if (strcmp(type, "m.room.avatar") == 0) {
-		msg.type = MessageType::m_room_avatar;
+	if (strcmp(typeMaybe, "m.room.message") == 0) {
+		type = MessageType::m_room_message;
+	} else if (strcmp(typeMaybe, "m.room.member") == 0) {
+		type = MessageType::m_room_member;
+	} else if (strcmp(typeMaybe, "m.room.name") == 0) {
+		type = MessageType::m_room_name;
+	} else if (strcmp(typeMaybe, "m.room.topic") == 0) {
+		type = MessageType::m_room_topic;
+	} else if (strcmp(typeMaybe, "m.room.avatar") == 0) {
+		type = MessageType::m_room_avatar;
 	} else {
 		// invalid event type, one we don't know
-		return msg;
+		return;
 	}
-	msg.sender = sender;
-	msg.eventId = eventId;
-	msg.originServerTs = json_integer_value(originServerTs);
+	sender = senderMaybe;
+	eventId = eventIdMaybe;
+	originServerTs = json_integer_value(originServerJson);
 	// okay, we have the base event constructed, time to do the type specifics
-	switch (msg.type) {
+	switch (type) {
 		case MessageType::m_room_message: {
 			const char* msgtype = json_object_get_string_value(content, "msgtype");
 			const char* body = json_object_get_string_value(content, "body");
 			if (!msgtype || !body) {
 				// invalid message
-				msg.type = MessageType::invalid;
-				return msg;
+				type = MessageType::invalid;
+				return;
 			}
+			message = new MessageRoomMessage;
 			if (strcmp(msgtype, "m.text") == 0) {
-				msg.message.msgtype = MessageMsgType::m_text;
+				message->msgtype = MessageMsgType::m_text;
 			} else if (strcmp(msgtype, "m.notice") == 0) {
-				msg.message.msgtype = MessageMsgType::m_notice;
+				message->msgtype = MessageMsgType::m_notice;
 			} else if (strcmp(msgtype, "m.emote") == 0) {
-				msg.message.msgtype = MessageMsgType::m_emote;
+				message->msgtype = MessageMsgType::m_emote;
 			} else if (strcmp(msgtype, "m.file") == 0) {
-				msg.message.msgtype = MessageMsgType::m_file;
+				message->msgtype = MessageMsgType::m_file;
 			} else if (strcmp(msgtype, "m.image") == 0) {
-				msg.message.msgtype = MessageMsgType::m_image;
+				message->msgtype = MessageMsgType::m_image;
 			} else if (strcmp(msgtype, "m.video") == 0) {
-				msg.message.msgtype = MessageMsgType::m_video;
+				message->msgtype = MessageMsgType::m_video;
 			} else if (strcmp(msgtype, "m.audio") == 0) {
-				msg.message.msgtype = MessageMsgType::m_audio;
+				message->msgtype = MessageMsgType::m_audio;
 			} else {
 				// invalid message
-				msg.type = MessageType::invalid;
-				return msg;
+				type = MessageType::invalid;
+				delete message;
+				return;
 			}
-			msg.message.body = body;
+			message->body = body;
 			break;
 		}
 		case MessageType::m_room_member: {
@@ -71,79 +72,103 @@ Message messageFromEvent(json_t* event) {
 			const char* membership = json_object_get_string_value(content, "membership");
 			if (!stateKey || !membership) {
 				// invalid message
-				msg.type = MessageType::invalid;
-				return msg;
+				type = MessageType::invalid;
+				return;
 			}
+			member = new MessageRoomMember;
 			if (strcmp(membership, "invite") == 0) {
-				msg.member.membership = MessageMemberMembership::invite;
+				member->membership = MessageMemberMembership::invite;
 			} else if (strcmp(membership, "join") == 0) {
-				msg.member.membership = MessageMemberMembership::join;
+				member->membership = MessageMemberMembership::join;
 			} else if (strcmp(membership, "leave") == 0) {
-				msg.member.membership = MessageMemberMembership::leave;
+				member->membership = MessageMemberMembership::leave;
 			} else if (strcmp(membership, "ban") == 0) {
-				msg.member.membership = MessageMemberMembership::ban;
+				member->membership = MessageMemberMembership::ban;
 			} else {
 				// invalid message;
-				msg.type = MessageType::invalid;
-				return msg;
+				type = MessageType::invalid;
+				delete member;
+				return;
 			}
 			if (avatarUrl) {
-				msg.member.avatarUrl = avatarUrl;
+				member->avatarUrl = avatarUrl;
 			} else {
-				msg.member.avatarUrl = "";
+				member->avatarUrl = "";
 			}
 			if (displayname) {
-				msg.member.displayname = displayname;
+				member->displayname = displayname;
 			} else {
-				msg.member.displayname = "";
+				member->displayname = "";
 			}
-			msg.member.stateKey = stateKey;
+			member->stateKey = stateKey;
 			break;
 		}
 		case MessageType::m_room_name: {
 			const char* name = json_object_get_string_value(content, "name");
 			if (!name) {
 				// invalid message
-				msg.type = MessageType::invalid;
-				return msg;
+				type = MessageType::invalid;
+				return;
 			}
-			msg.roomName.name = name;
+			roomName = new MessageRoomName;
+			roomName->name = name;
 			break;
 		}
 		case MessageType::m_room_topic: {
 			const char* topic = json_object_get_string_value(content, "topic");
 			if (!topic) {
 				// invalid message
-				msg.type = MessageType::invalid;
-				return msg;
+				type = MessageType::invalid;
+				return;
 			}
-			msg.roomTopic.topic = topic;
+			roomTopic = new MessageRoomTopic;
+			roomTopic->topic = topic;
 			break;
 		}
 		case MessageType::m_room_avatar: {
 			const char* avatarUrl = json_object_get_string_value(content, "url");
 			if (!avatarUrl) {
 				// invalid message
-				msg.type = MessageType::invalid;
-				return msg;
+				type = MessageType::invalid;
+				return;
 			}
-			msg.roomAvatar.avatarUrl = avatarUrl;
+			roomAvatar = new MessageRoomAvatar;
+			roomAvatar->avatarUrl = avatarUrl;
 			break;
 		}
 		default: {
-			msg.type = MessageType::invalid;
-			return msg;
+			type = MessageType::invalid;
+			return;
 		}
 	}
-	return msg;
 }
 
-void printMessage(Message msg) {
-	switch (msg.type) {
+Message::~Message() {
+	switch(type) {
+		case MessageType::m_room_message:
+			delete message;
+			break;
+		case MessageType::m_room_member:
+			delete member;
+			break;
+		case MessageType::m_room_name:
+			delete roomName;
+			break;
+		case MessageType::m_room_topic:
+			delete roomTopic;
+			break;
+		case MessageType::m_room_avatar:
+			delete roomAvatar;
+			break;
+	}
+}
+
+void Message::print() {
+	switch (type) {
 		case MessageType::m_room_message: {
-			std::string displayname = getDisplayName(msg.sender);
-			std::string body = msg.message.body;
-			switch (msg.message.msgtype) {
+			std::string displayname = getDisplayName(sender);
+			std::string body = message->body;
+			switch (message->msgtype) {
 				case MessageMsgType::m_text:
 					printf_top("\x1b[33m<%s>\x1b[0m %s\n", displayname.c_str(), body.c_str());
 					break;
@@ -169,9 +194,9 @@ void printMessage(Message msg) {
 			break;
 		}
 		case MessageType::m_room_member: {
-			std::string member1 = getDisplayName(msg.sender);
-			std::string member2 = getDisplayName(msg.member.stateKey);
-			switch (msg.member.membership) {
+			std::string member1 = getDisplayName(sender);
+			std::string member2 = getDisplayName(member->stateKey);
+			switch (member->membership) {
 				case MessageMemberMembership::invite:
 					printf_top("\x1b[33m%s\x1b[0m invited \x1b[33m%s\x1b[0m to the room\n", member1.c_str(), member2.c_str());
 					break;
@@ -179,7 +204,7 @@ void printMessage(Message msg) {
 					printf_top("\x1b[33m%s\x1b[0m joined the room\n", member1.c_str());
 					break;
 				case MessageMemberMembership::leave:
-					if (msg.sender == msg.member.stateKey) {
+					if (sender == member->stateKey) {
 						printf_top("\x1b[33m%s\x1b[0m left the room\n", member1.c_str());
 					} else {
 						printf_top("\x1b[33m%s\x1b[0m kicked \x1b[33m%s\x1b[0m from the room\n", member1.c_str(), member2.c_str());
@@ -192,19 +217,31 @@ void printMessage(Message msg) {
 			break;
 		}
 		case MessageType::m_room_name: {
-			std::string sender = getDisplayName(msg.sender);
-			printf_top("\x1b[33m%s\x1b[0m changed the name of the room to \x1b[35m%s\x1b[0m\n", sender.c_str(), msg.roomName.name.c_str());
+			std::string sender = getDisplayName(sender);
+			printf_top("\x1b[33m%s\x1b[0m changed the name of the room to \x1b[35m%s\x1b[0m\n", sender.c_str(), roomName->name.c_str());
 			break;
 		}
 		case MessageType::m_room_topic: {
-			std::string sender = getDisplayName(msg.sender);
-			printf_top("\x1b[33m%s\x1b[0m changed the topic of the room to \x1b[35m%s\x1b[0m\n", sender.c_str(), msg.roomTopic.topic.c_str());
+			std::string sender = getDisplayName(sender);
+			printf_top("\x1b[33m%s\x1b[0m changed the topic of the room to \x1b[35m%s\x1b[0m\n", sender.c_str(), roomTopic->topic.c_str());
 			break;
 		}
 		case MessageType::m_room_avatar: {
-			std::string sender = getDisplayName(msg.sender);
+			std::string sender = getDisplayName(sender);
 			printf_top("\x1b[33m%s\x1b[0m changed the icon of the room\n", sender.c_str());
 			break;
 		}
 	}
+}
+
+bool Message::isValid() {
+	return type != MessageType::invalid;
+}
+
+bool Message::isMessage() {
+	return type == MessageType::m_room_message;
+}
+
+u32 Message::getOriginServerTs() {
+	return originServerTs;
 }
