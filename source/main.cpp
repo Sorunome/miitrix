@@ -10,8 +10,9 @@
 #include <queue>
 #include <bits/stdc++.h> 
 #include "store.h"
-#include "message.h"
 #include "main.h"
+#include "room.h"
+#include "defines.h"
 
 PrintConsole* topScreenConsole;
 PrintConsole* bottomScreenConsole;
@@ -24,14 +25,13 @@ struct ExtendedRoomInfo {
 	u32 lastMsg;
 };
 
-std::vector<ExtendedRoomInfo> joinedRooms;
-std::map<std::string, std::vector<Message*>> messages;
+std::vector<Room*> joinedRooms;
 std::map<std::string, std::string> roomNames;
-bool sortRooms = false;
+bool maybeSortRooms = false;
 bool renderRooms = true;
 bool renderRoomDisplay = true;
-std::string currentRoom;
-std::queue<Message*> messageDisplayQueue;
+Room* currentRoom;
+std::queue<Event*> messageDisplayQueue;
 
 enum struct State {
 	roomPicking,
@@ -42,17 +42,10 @@ State state = State::roomPicking;
 Matrix::Client* client;
 Store store;
 
-std::string getRoomName(ExtendedRoomInfo room) {
-	if (room.name != "") {
-		return room.name;
-	}
-	return room.roomId;
-}
-
 std::string getDisplayName(std::string mxid) {
 	std::string displayname = mxid;
 	if (roomNames.count(mxid) == 0) {
-		Matrix::UserInfo user = client->getUserInfo(mxid, currentRoom);
+		Matrix::UserInfo user = client->getUserInfo(mxid, currentRoom->getId());
 		roomNames[mxid] = user.displayname;
 	}
 	if (roomNames[mxid] != "") {
@@ -63,75 +56,54 @@ std::string getDisplayName(std::string mxid) {
 
 int joinedRoomIndex(std::string roomId) {
 	for (u32 i = 0; i != joinedRooms.size(); i++) {
-		if (joinedRooms[i].roomId == roomId) {
+		if (joinedRooms[i]->getId() == roomId) {
 			return i;
 		}
 	}
 	return -1;
 }
 
-bool joinedRoomsSortFunc(ExtendedRoomInfo r1, ExtendedRoomInfo r2) {
-	return r1.lastMsg > r2.lastMsg;
+bool joinedRoomsSortFunc(Room* r1, Room* r2) {
+	return r1->getLastMsg() > r2->getLastMsg();
 }
 
 void sync_new_event(std::string roomId, json_t* event) {
 	if (joinedRoomIndex(roomId) == -1) {
 		// room isn't found, let's fetch it
-		joinedRooms.push_back({
-			name: "",
-			topic: "",
-			avatarUrl: "",
-			roomId: roomId,
-			lastMsg: 0,
-		});
+		joinedRooms.push_back(new Room({"", "", ""}, roomId));
 		renderRooms = true;
 	}
-	Message* msg = new Message(event);
-	if (!msg->isValid()) {
-		delete msg;
+	Event* evt = new Event(event);
+	if (!evt->isValid()) {
+		delete evt;
 		return;
 	}
-	if (msg->isMessage()) {
-		int ix = joinedRoomIndex(roomId);
-		if (ix != -1) {
-			joinedRooms[ix].lastMsg = msg->getOriginServerTs();
-			sortRooms = true;
-		}
+	int ix = joinedRoomIndex(roomId);
+	if (ix != -1) {
+		joinedRooms[ix]->addEvent(evt);
+		maybeSortRooms = true;
 	}
-	if (messages.count(roomId) == 0) {
-		messages[roomId] = std::vector<Message*>();
-	}
-	messages[roomId].push_back(msg);
-	while (messages[roomId].size() > 30) {
-		delete messages[roomId][0];
-		messages[roomId].erase(messages[roomId].begin());
-	}
-	if (state == State::roomDisplaying && roomId == currentRoom) {
-		messageDisplayQueue.push(msg);
+	if (state == State::roomDisplaying && roomId == currentRoom->getId()) {
+		messageDisplayQueue.push(evt);
 	}
 }
 
 void sync_leave_room(std::string roomId, json_t* event) {
 	int ix = joinedRoomIndex(roomId);
 	if (ix != -1) {
+		delete joinedRooms[ix];
 		joinedRooms.erase(joinedRooms.begin() + ix);
 	}
 	renderRooms = true;
 }
 
 void sync_room_info(std::string roomId, Matrix::RoomInfo roomInfo) {
-	ExtendedRoomInfo extendedRoomInfo = {
-		name: roomInfo.name,
-		topic: roomInfo.topic,
-		avatarUrl: roomInfo.avatarUrl,
-		roomId: roomId,
-		lastMsg: 0,
-	};
+	
 	int ix = joinedRoomIndex(roomId);
 	if (ix == -1) {
-		joinedRooms.push_back(extendedRoomInfo);
+		joinedRooms.push_back(new Room(roomInfo, roomId));
 	} else {
-		joinedRooms[ix] = extendedRoomInfo;
+		joinedRooms[ix]->updateInfo(roomInfo);
 	}
 	renderRooms = true;
 }
@@ -179,19 +151,15 @@ std::string getPassword() {
 	return mybuf;
 }
 
-void loadRoom(std::string roomId) {
-	printf_top("Loading room %s...\n", roomId.c_str());
+void loadRoom(Room* room) {
+	printf_top("Loading room %s...\n", room->getDisplayName().c_str());
 	renderRoomDisplay = true;
 	state = State::roomDisplaying;
-	currentRoom = roomId;
+	currentRoom = room;
 	roomNames.clear();
 	messageDisplayQueue.empty();
 	printf_top("==================================================\n");
-	if (messages.count(roomId) != 0) {
-		for (auto const& msg: messages[roomId]) {
-			msg->print();
-		}
-	}
+	room->printEvents();
 }
 
 int roomPickerTop = 0;
@@ -227,13 +195,22 @@ void roomPicker() {
 		renderRooms = true;
 	}
 	if (kDown & KEY_A) {
-		loadRoom(joinedRooms[roomPickerItem].roomId);
+		loadRoom(joinedRooms[roomPickerItem]);
 		return;
 	}
-	if (sortRooms) {
-		sort(joinedRooms.begin(), joinedRooms.end(), joinedRoomsSortFunc);
-		renderRooms = true;
-		sortRooms = false;
+	if (maybeSortRooms) {
+		bool sortRooms = false;
+		for (auto const& room: joinedRooms) {
+			if (room->haveDirtyOrder()) {
+				sortRooms = true;
+				break;
+			}
+		}
+		if (sortRooms) {
+			sort(joinedRooms.begin(), joinedRooms.end(), joinedRoomsSortFunc);
+			renderRooms = true;
+		}
+		maybeSortRooms = false;
 	}
 	if (!renderRooms) {
 		return;
@@ -246,9 +223,9 @@ void roomPicker() {
 		if (i + roomPickerTop >= joinedRooms.size()) {
 			break;
 		}
-		ExtendedRoomInfo room = joinedRooms[i + roomPickerTop];
+		Room* room = joinedRooms[i + roomPickerTop];
 		char name[40];
-		strncpy(name, getRoomName(room).c_str(), 39);
+		strncpy(name, room->getDisplayName().c_str(), 39);
 		name[39] = '\0';
 		printf_bottom("\x1b[%d;2H%s", i + 1, name);
 	}
@@ -256,9 +233,9 @@ void roomPicker() {
 
 void displayRoom() {
 	while (messageDisplayQueue.size()) {
-		Message* msg = messageDisplayQueue.front();
+		Event* evt = messageDisplayQueue.front();
 		messageDisplayQueue.pop();
-		msg->print();
+		evt->print();
 	}
 	u32 kDown = hidKeysDown();
 	if (kDown & KEY_B) {
@@ -270,22 +247,15 @@ void displayRoom() {
 	if (kDown & KEY_A) {
 		std::string message = getMessage();
 		if (message != "") {
-			client->sendText(currentRoom, message);
+			client->sendText(currentRoom->getId(), message);
 		}
 	}
-	if (!renderRoomDisplay) {
+	if (!renderRoomDisplay && !currentRoom->haveDirtyInfo()) {
 		return;
 	}
 	printf_bottom("\x1b[2J");
 	renderRoomDisplay = false;
-	int ix = joinedRoomIndex(currentRoom);
-	if (ix == -1) {
-		printf_bottom("Something went really wrong...");
-		return;
-	}
-	ExtendedRoomInfo room = joinedRooms[ix];
-	printf_bottom("Room name: %s\n", getRoomName(room).c_str());
-	printf_bottom("Room topic: %s\n", room.topic.c_str());
+	currentRoom->printInfo();
 	printf_bottom("\nPress A to send a message\nPress B to go back\n");
 }
 
