@@ -218,18 +218,18 @@ void Event::print() {
 			break;
 		}
 		case EventType::m_room_name: {
-			std::string sender = getDisplayName(sender);
-			printf_top("\x1b[33m%s\x1b[0m changed the name of the room to \x1b[35m%s\x1b[0m\n", sender.c_str(), roomName->name.c_str());
+			std::string senderDisplay = getDisplayName(sender);
+			printf_top("\x1b[33m%s\x1b[0m changed the name of the room to \x1b[35m%s\x1b[0m\n", senderDisplay.c_str(), roomName->name.c_str());
 			break;
 		}
 		case EventType::m_room_topic: {
-			std::string sender = getDisplayName(sender);
-			printf_top("\x1b[33m%s\x1b[0m changed the topic of the room to \x1b[35m%s\x1b[0m\n", sender.c_str(), roomTopic->topic.c_str());
+			std::string senderDisplay = getDisplayName(sender);
+			printf_top("\x1b[33m%s\x1b[0m changed the topic of the room to \x1b[35m%s\x1b[0m\n", senderDisplay.c_str(), roomTopic->topic.c_str());
 			break;
 		}
 		case EventType::m_room_avatar: {
-			std::string sender = getDisplayName(sender);
-			printf_top("\x1b[33m%s\x1b[0m changed the icon of the room\n", sender.c_str());
+			std::string senderDisplay = getDisplayName(sender);
+			printf_top("\x1b[33m%s\x1b[0m changed the icon of the room\n", senderDisplay.c_str());
 			break;
 		}
 	}
