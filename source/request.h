@@ -19,6 +19,7 @@ class Request {
 private:
 	std::queue<RequestGetMemberInfoQueue> getMemberInfoQueue;
 	std::queue<RequestSendTextQueue> sendTextQueue;
+	std::queue<std::string> getExtraRoomInfoQueue;
 	bool stopLooping = false;
 	bool isLooping = false;
 	Thread loopThread;
@@ -27,6 +28,7 @@ public:
 	void stop();
 	void loop();
 	void getMemberInfo(std::string mxid, std::string roomId);
+	void getExtraRoomInfo(std::string roomId);
 	void sendText(std::string roomId, std::string message);
 };
 

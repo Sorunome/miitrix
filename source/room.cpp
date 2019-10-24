@@ -2,6 +2,8 @@
 #include "defines.h"
 #include "request.h"
 
+extern Matrix::Client* client;
+
 Room::Room(Matrix::RoomInfo info, std::string _roomId) {
 	name = info.name;
 	topic = info.topic;
@@ -41,6 +43,33 @@ std::string Room::getMemberDisplayName(std::string mxid) {
 std::string Room::getDisplayName() {
 	if (name != "") {
 		return name;
+	}
+	if (canonicalAlias != "") {
+		return canonicalAlias;
+	}
+	if (members.size()) {
+		std::vector<std::string> dispMembers;
+		for (auto const& m: members) {
+			std::string mxid = m.first;
+			Matrix::MemberInfo info = m.second;
+			if (mxid != client->getUserId() && info.displayname != "") {
+				dispMembers.push_back(info.displayname);
+			}
+			if (dispMembers.size() >= 3) {
+				break;
+			}
+		}
+		if (dispMembers.size() == 1) {
+			return dispMembers[0];
+		} else if (dispMembers.size() == 2) {
+			return dispMembers[0] + " and " + dispMembers[1];
+		} else if (dispMembers.size() > 0) {
+			return dispMembers[0] + ", " + dispMembers[1] + " and others";
+		}
+	}
+	if (!requestedExtraInfo) {
+		requestedExtraInfo = true;
+		request->getExtraRoomInfo(roomId);
 	}
 	return roomId;
 }
@@ -89,10 +118,17 @@ void Room::addEvent(Event* evt) {
 void Room::addMember(std::string mxid, Matrix::MemberInfo m) {
 	members[mxid] = m;
 	dirty = true;
+	dirtyInfo = true;
 }
 
 u32 Room::getLastMsg() {
 	return lastMsg;
+}
+
+void Room::setCanonicalAlias(std::string alias) {
+	canonicalAlias = alias;
+	dirty = true;
+	dirtyInfo = true;
 }
 
 bool Room::haveDirty() {

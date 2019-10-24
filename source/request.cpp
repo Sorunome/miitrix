@@ -14,10 +14,32 @@ void Request::loop() {
 			RequestGetMemberInfoQueue reqInfo = getMemberInfoQueue.front();
 			getMemberInfoQueue.pop();
 			Matrix::MemberInfo info = client->getMemberInfo(reqInfo.mxid, reqInfo.roomId);
-			// TODO: pushed to joined room
 			int ix = joinedRoomIndex(reqInfo.roomId);
 			if (ix != -1) {
 				joinedRooms[ix]->addMember(reqInfo.mxid, info);
+			}
+		}
+
+		// next send messages
+		if (sendTextQueue.size()) {
+			RequestSendTextQueue req = sendTextQueue.front();
+			sendTextQueue.pop();
+			client->sendText(req.roomId, req.message);
+		}
+
+		// next handle extra room info
+		if (getExtraRoomInfoQueue.size()) {
+			std::string roomId = getExtraRoomInfoQueue.front();
+			getExtraRoomInfoQueue.pop();
+			Matrix::ExtraRoomInfo info = client->getExtraRoomInfo(roomId);
+			int ix = joinedRoomIndex(roomId);
+			if (ix != -1) {
+				joinedRooms[ix]->setCanonicalAlias(info.canonicalAlias);
+				for (auto const& m: info.members) {
+					std::string mxid = m.first;
+					Matrix::MemberInfo minfo = m.second;
+					joinedRooms[ix]->addMember(mxid, minfo);
+				}
 			}
 		}
 
@@ -51,6 +73,17 @@ void Request::getMemberInfo(std::string mxid, std::string roomId) {
 	getMemberInfoQueue.push({
 		mxid: mxid,
 		roomId: roomId,
+	});
+}
+
+void Request::getExtraRoomInfo(std::string roomId) {
+	getExtraRoomInfoQueue.push(roomId);
+}
+
+void Request::sendText(std::string roomId, std::string message) {
+	sendTextQueue.push({
+		roomId: roomId,
+		message: message,
 	});
 }
 

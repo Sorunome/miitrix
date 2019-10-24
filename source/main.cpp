@@ -19,7 +19,6 @@ PrintConsole* topScreenConsole;
 PrintConsole* bottomScreenConsole;
 
 std::vector<Room*> joinedRooms;
-bool maybeSortRooms = false;
 bool renderRooms = true;
 bool renderRoomDisplay = true;
 Room* currentRoom;
@@ -60,7 +59,6 @@ void sync_new_event(std::string roomId, json_t* event) {
 	int ix = joinedRoomIndex(roomId);
 	if (ix != -1) {
 		joinedRooms[ix]->addEvent(evt);
-		maybeSortRooms = true;
 	}
 }
 
@@ -172,20 +170,17 @@ void roomPicker() {
 		loadRoom(joinedRooms[roomPickerItem]);
 		return;
 	}
-	if (maybeSortRooms) {
-		bool sortRooms = false;
-		for (auto const& room: joinedRooms) {
-			if (room->haveDirtyOrder() || room->haveDirtyInfo()) {
-				sortRooms = true;
-			}
-			room->resetDirtyInfo();
-			room->resetDirtyOrder();
+	bool sortRooms = false;
+	for (auto const& room: joinedRooms) {
+		if (room->haveDirtyOrder() || room->haveDirtyInfo()) {
+			sortRooms = true;
 		}
-		if (sortRooms) {
-			sort(joinedRooms.begin(), joinedRooms.end(), joinedRoomsSortFunc);
-			renderRooms = true;
-		}
-		maybeSortRooms = false;
+		room->resetDirtyInfo();
+		room->resetDirtyOrder();
+	}
+	if (sortRooms) {
+		sort(joinedRooms.begin(), joinedRooms.end(), joinedRoomsSortFunc);
+		renderRooms = true;
 	}
 	if (!renderRooms) {
 		return;
