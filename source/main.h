@@ -2,7 +2,9 @@
 #define _MAIN_H_
 
 #include <string>
-
-std::string getDisplayName(std::string sender);
+#include <vector>
+#include "room.h"
+int joinedRoomIndex(std::string roomId);
+extern std::vector<Room*> joinedRooms;
 
 #endif // _MAIN_H_

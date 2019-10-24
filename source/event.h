@@ -4,6 +4,10 @@
 #include <3ds.h>
 #include <string>
 #include <jansson.h>
+#include "room.h"
+#include <matrixclient.h>
+
+class Room;
 
 enum struct EventType : u8 {
 	invalid,
@@ -37,8 +41,7 @@ enum struct EventMemberMembership : u8 {
 };
 
 struct EventRoomMember {
-	std::string avatarUrl;
-	std::string displayname;
+	Matrix::MemberInfo info;
 	std::string stateKey;
 	EventMemberMembership membership;
 };
@@ -61,6 +64,7 @@ private:
 	std::string sender;
 	std::string eventId;
 	u32 originServerTs;
+	Room* room = NULL;
 
 	union {
 		EventRoomMessage* message;
@@ -69,16 +73,21 @@ private:
 		EventRoomTopic* roomTopic;
 		EventRoomAvatar* roomAvatar;
 	};
+	
+	std::string getDisplayName(std::string id);
 public:
 	Event(json_t* event);
 	~Event();
+	void setRoom(Room* r);
 	void print();
 	bool isValid();
 	EventType getType();
 	std::string getRoomName();
 	std::string getRoomTopic();
 	std::string getRoomAvatarUrl();
+	std::string getMemberMxid();
+	Matrix::MemberInfo getMemberInfo();
 	u32 getOriginServerTs();
 };
 
-#endif // _Event_H_
+#endif // _EVENT_H_

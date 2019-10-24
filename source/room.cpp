@@ -1,5 +1,6 @@
 #include "room.h"
 #include "defines.h"
+#include "request.h"
 
 Room::Room(Matrix::RoomInfo info, std::string _roomId) {
 	name = info.name;
@@ -15,6 +16,7 @@ Room::~Room() {
 }
 
 void Room::printEvents() {
+	printf_top("\x1b[2J");
 	for (auto const& evt: events) {
 		evt->print();
 	}
@@ -23,7 +25,17 @@ void Room::printEvents() {
 void Room::printInfo() {
 	printf_bottom("Room name: %s\n", getDisplayName().c_str());
 	printf_bottom("Room topic: %s\n", topic.c_str());
-	dirtyInfo = false;
+}
+
+std::string Room::getMemberDisplayName(std::string mxid) {
+	std::string displayname = mxid;
+	if (members.count(mxid) == 0) {
+		request->getMemberInfo(mxid, roomId);
+	}
+	if (members[mxid].displayname != "") {
+		displayname = members[mxid].displayname;
+	}
+	return displayname;
 }
 
 std::string Room::getDisplayName() {
@@ -34,6 +46,8 @@ std::string Room::getDisplayName() {
 }
 
 void Room::addEvent(Event* evt) {
+	// very first we claim the event as ours
+	evt->setRoom(this);
 	// first add the message to the internal cache
 	events.push_back(evt);
 	// clear unneeded stuffs
@@ -47,6 +61,11 @@ void Room::addEvent(Event* evt) {
 	if (type == EventType::m_room_message) {
 		lastMsg = evt->getOriginServerTs();
 		dirtyOrder = true;
+	}
+
+	// update room members accordingly
+	if (type == EventType::m_room_member) {
+		addMember(evt->getMemberMxid(), evt->getMemberInfo());
 	}
 
 	// check if we have room specific changes
@@ -67,8 +86,17 @@ void Room::addEvent(Event* evt) {
 	dirty = true;
 }
 
+void Room::addMember(std::string mxid, Matrix::MemberInfo m) {
+	members[mxid] = m;
+	dirty = true;
+}
+
 u32 Room::getLastMsg() {
 	return lastMsg;
+}
+
+bool Room::haveDirty() {
+	return dirty;
 }
 
 bool Room::haveDirtyInfo() {
@@ -77,6 +105,18 @@ bool Room::haveDirtyInfo() {
 
 bool Room::haveDirtyOrder() {
 	return dirtyOrder;
+}
+
+void Room::resetDirty() {
+	dirty = false;
+}
+
+void Room::resetDirtyInfo() {
+	dirtyInfo = false;
+}
+
+void Room::resetDirtyOrder() {
+	dirtyOrder = false;
 }
 
 std::string Room::getId() {

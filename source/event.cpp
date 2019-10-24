@@ -1,7 +1,6 @@
 #include "event.h"
 #include <string.h>
 #include "util.h"
-#include "main.h"
 #include "defines.h"
 
 Event::Event(json_t* event) {
@@ -92,14 +91,14 @@ Event::Event(json_t* event) {
 				return;
 			}
 			if (avatarUrl) {
-				member->avatarUrl = avatarUrl;
+				member->info.avatarUrl = avatarUrl;
 			} else {
-				member->avatarUrl = "";
+				member->info.avatarUrl = "";
 			}
 			if (displayname) {
-				member->displayname = displayname;
+				member->info.displayname = displayname;
 			} else {
-				member->displayname = "";
+				member->info.displayname = "";
 			}
 			member->stateKey = stateKey;
 			break;
@@ -162,6 +161,17 @@ Event::~Event() {
 			delete roomAvatar;
 			break;
 	}
+}
+
+void Event::setRoom(Room* r) {
+	room = r;
+}
+
+std::string Event::getDisplayName(std::string id) {
+	if (!room) {
+		return id;
+	}
+	return room->getMemberDisplayName(id);
 }
 
 void Event::print() {
@@ -253,6 +263,14 @@ std::string Event::getRoomTopic() {
 
 std::string Event::getRoomAvatarUrl() {
 	return roomAvatar->avatarUrl;
+}
+
+std::string Event::getMemberMxid() {
+	return member->stateKey;
+}
+
+Matrix::MemberInfo Event::getMemberInfo() {
+	return member->info;
 }
 
 u32 Event::getOriginServerTs() {
