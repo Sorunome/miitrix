@@ -88,11 +88,27 @@ void Room::addEvent(Event* evt) {
 			if (e->eventId == evt->message->editEventId && e->type == EventType::m_room_message) {
 				e->message->body = evt->message->body;
 				e->message->msgtype = evt->message->msgtype;
-				dirty = true;
 				delete evt;
+				dirty = true;
 				return;
 			}
 		}
+	}
+	// let's check if this is a redaction
+	if (type == EventType::m_room_redaction) {
+		// we need the iterator here for removing
+		for (auto it = events.begin(); it != events.end(); it++) {
+			Event* e = *it;
+			if (e->eventId == evt->redaction->redacts) {
+				// okay, redact it
+				events.erase(it);
+				delete e;
+				dirty = true;
+				break;
+			}
+		}
+		delete evt;
+		return; // redactions aren't rendered at all anyways
 	}
 	// very first we claim the event as ours
 	evt->setRoom(this);

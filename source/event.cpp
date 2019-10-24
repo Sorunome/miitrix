@@ -24,6 +24,8 @@ Event::Event(json_t* event) {
 		type = EventType::m_room_topic;
 	} else if (strcmp(typeMaybe, "m.room.avatar") == 0) {
 		type = EventType::m_room_avatar;
+	} else if (strcmp(typeMaybe, "m.room.redaction") == 0) {
+		type = EventType::m_room_redaction;
 	} else {
 		// invalid event type, one we don't know
 		return;
@@ -155,6 +157,17 @@ Event::Event(json_t* event) {
 			}
 			roomAvatar = new EventRoomAvatar;
 			roomAvatar->avatarUrl = avatarUrl;
+			break;
+		}
+		case EventType::m_room_redaction: {
+			const char* redacts = json_object_get_string_value(event, "redacts");
+			if (!redacts) {
+				// invalid message
+				type = EventType::invalid;
+				return;
+			}
+			redaction = new EventRoomRedaction;
+			redaction->redacts = redacts;
 			break;
 		}
 		default: {

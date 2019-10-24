@@ -16,6 +16,7 @@ enum struct EventType : u8 {
 	m_room_name,
 	m_room_topic,
 	m_room_avatar,
+	m_room_redaction,
 };
 
 enum struct EventMsgType : u8 {
@@ -59,6 +60,10 @@ struct EventRoomAvatar {
 	std::string avatarUrl;
 };
 
+struct EventRoomRedaction {
+	std::string redacts;
+};
+
 class Event {
 private:
 	Room* room = NULL;
@@ -76,6 +81,7 @@ public:
 		EventRoomName* roomName;
 		EventRoomTopic* roomTopic;
 		EventRoomAvatar* roomAvatar;
+		EventRoomRedaction* redaction;
 	};
 	
 	Event(json_t* event);
