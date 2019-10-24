@@ -34,14 +34,35 @@ Event::Event(json_t* event) {
 	// okay, we have the base event constructed, time to do the type specifics
 	switch (type) {
 		case EventType::m_room_message: {
-			const char* msgtype = json_object_get_string_value(content, "msgtype");
-			const char* body = json_object_get_string_value(content, "body");
+			char* msgtype = json_object_get_string_value(content, "msgtype");
+			char* body = json_object_get_string_value(content, "body");
 			if (!msgtype || !body) {
 				// invalid message
 				type = EventType::invalid;
 				return;
 			}
 			message = new EventRoomMessage;
+			// now check if we are actually an edit event
+			json_t* relatesTo = json_object_get(content, "m.relates_to");
+			if (relatesTo) {
+				const char* relType = json_object_get_string_value(relatesTo, "rel_type");
+				const char* relEventId = json_object_get_string_value(relatesTo, "event_id");
+				if (relType && relEventId && strcmp(relType, "m.replace") == 0) {
+					// we have an edit
+					json_t* newContent = json_object_get(content, "m.new_content");
+					if (newContent) {
+						char* newMsgtype = json_object_get_string_value(newContent, "msgtype");
+						char* newBody = json_object_get_string_value(newContent, "body");
+						if (newMsgtype && newBody) {
+							// finally, the edit is valid
+							msgtype = newMsgtype;
+							body = newBody;
+							message->editEventId = relEventId;
+						}
+					}
+				}
+			}
+			
 			if (strcmp(msgtype, "m.text") == 0) {
 				message->msgtype = EventMsgType::m_text;
 			} else if (strcmp(msgtype, "m.notice") == 0) {
@@ -247,32 +268,4 @@ void Event::print() {
 
 bool Event::isValid() {
 	return type != EventType::invalid;
-}
-
-EventType Event::getType() {
-	return type;
-}
-
-std::string Event::getRoomName() {
-	return roomName->name;
-}
-
-std::string Event::getRoomTopic() {
-	return roomTopic->topic;
-}
-
-std::string Event::getRoomAvatarUrl() {
-	return roomAvatar->avatarUrl;
-}
-
-std::string Event::getMemberMxid() {
-	return member->stateKey;
-}
-
-Matrix::MemberInfo Event::getMemberInfo() {
-	return member->info;
-}
-
-u32 Event::getOriginServerTs() {
-	return originServerTs;
 }

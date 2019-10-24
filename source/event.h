@@ -31,6 +31,7 @@ enum struct EventMsgType : u8 {
 struct EventRoomMessage {
 	EventMsgType msgtype;
 	std::string body;
+	std::string editEventId;
 };
 
 enum struct EventMemberMembership : u8 {
@@ -60,12 +61,15 @@ struct EventRoomAvatar {
 
 class Event {
 private:
+	Room* room = NULL;
+	
+	std::string getDisplayName(std::string id);
+public:
 	EventType type;
 	std::string sender;
 	std::string eventId;
 	u32 originServerTs;
-	Room* room = NULL;
-
+	
 	union {
 		EventRoomMessage* message;
 		EventRoomMember* member;
@@ -74,20 +78,11 @@ private:
 		EventRoomAvatar* roomAvatar;
 	};
 	
-	std::string getDisplayName(std::string id);
-public:
 	Event(json_t* event);
 	~Event();
 	void setRoom(Room* r);
 	void print();
 	bool isValid();
-	EventType getType();
-	std::string getRoomName();
-	std::string getRoomTopic();
-	std::string getRoomAvatarUrl();
-	std::string getMemberMxid();
-	Matrix::MemberInfo getMemberInfo();
-	u32 getOriginServerTs();
 };
 
 #endif // _EVENT_H_

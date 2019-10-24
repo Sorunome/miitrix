@@ -33,6 +33,11 @@ std::string Room::getMemberDisplayName(std::string mxid) {
 	std::string displayname = mxid;
 	if (members.count(mxid) == 0) {
 		request->getMemberInfo(mxid, roomId);
+		// insert a fake member to prevent re-queueing
+		members[mxid] = {
+			displayname: "",
+			avatarUrl: "",
+		};
 	}
 	if (members[mxid].displayname != "") {
 		displayname = members[mxid].displayname;
@@ -75,6 +80,20 @@ std::string Room::getDisplayName() {
 }
 
 void Room::addEvent(Event* evt) {
+	EventType type = evt->type;
+	// let's check if this is an edit first
+	if (type == EventType::m_room_message && evt->message->editEventId != "") {
+		// we are an edit event
+		for (auto const& e: events) {
+			if (e->eventId == evt->message->editEventId && e->type == EventType::m_room_message) {
+				e->message->body = evt->message->body;
+				e->message->msgtype = evt->message->msgtype;
+				dirty = true;
+				delete evt;
+				return;
+			}
+		}
+	}
 	// very first we claim the event as ours
 	evt->setRoom(this);
 	// first add the message to the internal cache
@@ -85,29 +104,28 @@ void Room::addEvent(Event* evt) {
 		events.erase(events.begin());
 	}
 	
-	EventType type = evt->getType();
 	// update the lastMsg if it is a text message
 	if (type == EventType::m_room_message) {
-		lastMsg = evt->getOriginServerTs();
+		lastMsg = evt->originServerTs;
 		dirtyOrder = true;
 	}
 
 	// update room members accordingly
 	if (type == EventType::m_room_member) {
-		addMember(evt->getMemberMxid(), evt->getMemberInfo());
+		addMember(evt->member->stateKey, evt->member->info);
 	}
 
 	// check if we have room specific changes
 	if (type == EventType::m_room_name) {
-		name = evt->getRoomName();
+		name = evt->roomName->name;
 		dirtyInfo = true;
 	}
 	if (type == EventType::m_room_topic) {
-		topic = evt->getRoomTopic();
+		topic = evt->roomTopic->topic;
 		dirtyInfo = true;
 	}
 	if (type == EventType::m_room_avatar) {
-		avatarUrl = evt->getRoomAvatarUrl();
+		avatarUrl = evt->roomAvatar->avatarUrl;
 		dirtyInfo = true;
 	}
 
