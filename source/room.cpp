@@ -326,6 +326,7 @@ void Room::readFromFile(FILE* fp) {
 				if (num) {
 					for (u32 i = 0; i < num; i++) {
 						Event* evt = new Event(fp);
+						evt->setRoom(this);
 						events.push_back(evt);
 					}
 				}
@@ -340,10 +341,12 @@ void Room::readFromFile(FILE* fp) {
 						std::string mxid = file_read_string(fp);
 						std::string displayname = file_read_string(fp);
 						std::string avatarUrl = file_read_string(fp);
-						members[mxid] = {
-							displayname: displayname,
-							avatarUrl: avatarUrl,
-						};
+						if (displayname != "") {
+							members[mxid] = {
+								displayname: displayname,
+								avatarUrl: avatarUrl,
+							};
+						}
 					}
 				}
 				break;

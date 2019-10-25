@@ -256,7 +256,7 @@ int main(int argc, char** argv) {
 	client->setRoomInfoCallback(&sync_room_info);
 	
 	printf_top("Loading channel list...\n");
-	
+	/*
 	while(aptMainLoop()) {
 		hidScanInput();
 		u32 kDown = hidKeysDown();
@@ -267,7 +267,7 @@ int main(int argc, char** argv) {
 		//Wait for VBlank
 		gspWaitForVBlank();
 	}
-	
+	*/
 	roomCollection->readFromFiles();
 	request->start();
 	client->startSyncLoop();
