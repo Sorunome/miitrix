@@ -14,7 +14,11 @@ enum struct RoomFileField: u8 {
 	lastMsg,
 	events,
 	members,
+	
+	end = 0xFF,
 };
+
+#define D if(0)
 
 Room::Room(FILE* fp) {
 	readFromFile(fp);
@@ -236,7 +240,46 @@ void Room::writeToFile(FILE* fp) {
 	file_write_obj(RoomFileField::lastMsg, fp);
 	file_write_obj(lastMsg, fp);
 	
-	// TODO: events and members
+	u32 numEvents = events.size();
+	if (numEvents) {
+		file_write_obj(RoomFileField::events, fp);
+		file_write_obj(numEvents, fp);
+		for (auto const& evt: events) {
+			evt->writeToFile(fp);
+		}
+	}
+	
+	u32 numMembers = 0;
+	for (auto const& m: members) {
+		std::string mxid = m.first;
+		Matrix::MemberInfo info = m.second;
+		if (info.displayname != "") {
+			numMembers++;
+			if (numMembers >= 4) {
+				break;
+			}
+		}
+	}
+	if (numMembers) {
+		file_write_obj(RoomFileField::members, fp);
+		file_write_obj(numMembers, fp);
+		numMembers = 0;
+		for (auto const& m: members) {
+			std::string mxid = m.first;
+			Matrix::MemberInfo info = m.second;
+			if (info.displayname != "") {
+				file_write_string(mxid, fp);
+				file_write_string(info.displayname, fp);
+				file_write_string(info.avatarUrl, fp);
+				numMembers++;
+				if (numMembers >= 4) {
+					break;
+				}
+			}
+		}
+	}
+	
+	file_write_obj(RoomFileField::end, fp);
 }
 
 void Room::readFromFile(FILE* fp) {
@@ -248,29 +291,72 @@ void Room::readFromFile(FILE* fp) {
 	members.clear();
 	
 	RoomFileField field;
+	bool done = false;
 	while (file_read_obj(&field, fp)) {
+		D printf_top("room field: %d\n", field);
 		switch(field) {
 			case RoomFileField::name:
 				name = file_read_string(fp);
+				D printf_top("name: %s\n", name.c_str());
 				break;
 			case RoomFileField::topic:
 				topic = file_read_string(fp);
+				D printf_top("topic: %s\n", topic.c_str());
 				break;
 			case RoomFileField::avatarUrl:
 				avatarUrl = file_read_string(fp);
+				D printf_top("avatarUrl: %s\n", avatarUrl.c_str());
 				break;
 			case RoomFileField::roomId:
 				roomId = file_read_string(fp);
+				D printf_top("roomId: %s\n", roomId.c_str());
 				break;
 			case RoomFileField::canonicalAlias:
 				canonicalAlias = file_read_string(fp);
+				D printf_top("alias: %s\n", canonicalAlias.c_str());
 				break;
 			case RoomFileField::lastMsg:
 				file_read_obj(&lastMsg, fp);
+				D printf_top("lastMsg: %llu\n", lastMsg);
+				break;
+			case RoomFileField::events: {
+				u32 num;
+				file_read_obj(&num, fp);
+				D printf_top("num events: %lu\n", num);
+				if (num) {
+					for (u32 i = 0; i < num; i++) {
+						Event* evt = new Event(fp);
+						events.push_back(evt);
+					}
+				}
+				break;
+			}
+			case RoomFileField::members: {
+				u32 num;
+				file_read_obj(&num, fp);
+				D printf_top("num members: %lu\n", num);
+				if (num) {
+					for (u32 i = 0; i < num; i++) {
+						std::string mxid = file_read_string(fp);
+						std::string displayname = file_read_string(fp);
+						std::string avatarUrl = file_read_string(fp);
+						members[mxid] = {
+							displayname: displayname,
+							avatarUrl: avatarUrl,
+						};
+					}
+				}
+				break;
+			}
+			case RoomFileField::end:
+				done = true;
 				break;
 		}
+		if (done) {
+			break;
+		}
 	}
-	dirty = true;
+	dirty = false;
 	dirtyInfo = true;
 	dirtyOrder = true;
 }

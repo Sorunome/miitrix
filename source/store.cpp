@@ -14,6 +14,37 @@ void Store::init() {
 		mkdir("/miitrix/rooms", 0700);
 	}
 	chdir("/miitrix");
+	
+	syncToken = getVar("synctoken");
+}
+
+void Store::setSyncToken(std::string token) {
+	syncToken = token;
+	dirty = true;
+}
+
+std::string Store::getSyncToken() {
+	return syncToken;
+}
+
+void Store::setFilterId(std::string fid) {
+	filterId = fid;
+}
+
+std::string Store::getFilterId() {
+	return filterId;
+}
+
+bool Store::haveDirty() {
+	return dirty;
+}
+
+void Store::resetDirty() {
+	dirty = false;
+}
+
+void Store::flush() {
+	setVar("synctoken", syncToken);
 }
 
 std::string Store::getVar(const char* var) {
@@ -39,3 +70,5 @@ void Store::setVar(const char* var, std::string token) {
 void Store::delVar(const char* var) {
 	remove(var);
 }
+
+Store* store = new Store;

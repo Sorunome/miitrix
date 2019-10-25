@@ -1,7 +1,6 @@
 #include <3ds.h>
 #include <stdio.h>
 #include <matrixclient.h>
-#include <jansson.h>
 
 #include <string>
 #include <string.h>
@@ -13,6 +12,7 @@
 #include "defines.h"
 #include "request.h"
 #include "roomcollection.h"
+#include "util.h"
 
 PrintConsole* topScreenConsole;
 PrintConsole* bottomScreenConsole;
@@ -27,7 +27,6 @@ enum struct State {
 State state = State::roomPicking;
 
 Matrix::Client* client;
-Store store;
 
 void sync_new_event(std::string roomId, json_t* event) {
 	roomCollection->ensureExists(roomId);
@@ -171,11 +170,11 @@ void displayRoom() {
 }
 
 bool setupAcc() {
-	std::string homeserverUrl = store.getVar("hsUrl");
-	std::string token = store.getVar("token");
+	std::string homeserverUrl = store->getVar("hsUrl");
+	std::string token = store->getVar("token");
 	std::string userId = "";
 	if (homeserverUrl != "" || token != "") {
-		client = new Matrix::Client(homeserverUrl, token);
+		client = new Matrix::Client(homeserverUrl, token, store);
 		userId = client->getUserId();
 		if (userId != "") {
 			printf_top("Logged in as %s\n", userId.c_str());
@@ -200,7 +199,7 @@ bool setupAcc() {
 
 	homeserverUrl = getHomeserverUrl();
 
-	client = new Matrix::Client(homeserverUrl);
+	client = new Matrix::Client(homeserverUrl, "", store);
 
 	std::string username = getUsername();
 	std::string password = getPassword();
@@ -221,16 +220,19 @@ bool setupAcc() {
 	}
 	userId = client->getUserId();
 	printf_top("Logged in as %s\n", userId.c_str());
-	store.setVar("hsUrl", homeserverUrl);
-	store.setVar("token", client->getToken());
+	store->setVar("hsUrl", homeserverUrl);
+	store->setVar("token", client->getToken());
 	return true;
 }
 
 void logout() {
 	printf_top("Logging out...");
 	client->logout();
-	store.delVar("token");
-	store.delVar("hsUrl");
+	store->delVar("token");
+	store->delVar("hsUrl");
+	store->delVar("synctoken");
+	store->delVar("roomlist");
+	remove_directory("rooms");
 }
 
 int main(int argc, char** argv) {
@@ -241,7 +243,7 @@ int main(int argc, char** argv) {
 	consoleInit(GFX_TOP, topScreenConsole);
 	consoleInit(GFX_BOTTOM, bottomScreenConsole);
 
-	store.init();
+	store->init();
 
 	printf_top("Miitrix v0.0.0\n");
 	
@@ -253,9 +255,22 @@ int main(int argc, char** argv) {
 	client->setLeaveRoomCallback(&sync_leave_room);
 	client->setRoomInfoCallback(&sync_room_info);
 	
+	printf_top("Loading channel list...\n");
+	
+	while(aptMainLoop()) {
+		hidScanInput();
+		u32 kDown = hidKeysDown();
+		if (kDown & KEY_A) break;
+		// Flush and swap framebuffers
+		gfxFlushBuffers();
+		gfxSwapBuffers();
+		//Wait for VBlank
+		gspWaitForVBlank();
+	}
+	
+	roomCollection->readFromFiles();
 	request->start();
 	client->startSyncLoop();
-	printf_top("Loading channel list...\n");
 
 	while (aptMainLoop()) {
 		//printf("%d\n", i++);

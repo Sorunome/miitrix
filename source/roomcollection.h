@@ -21,6 +21,7 @@ public:
 	void maybePrintPicker(int pickerTop, int pickerItem, bool override);
 	void resetAllDirty();
 	void writeToFiles();
+	void readFromFiles();
 };
 
 extern RoomCollection* roomCollection;

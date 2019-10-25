@@ -84,11 +84,14 @@ public:
 		EventRoomRedaction* redaction;
 	};
 	
+	Event(FILE* fp);
 	Event(json_t* event);
 	~Event();
 	void setRoom(Room* r);
 	void print();
 	bool isValid();
+	void writeToFile(FILE* fp);
+	void readFromFile(FILE* fp);
 };
 
 #endif // _EVENT_H_

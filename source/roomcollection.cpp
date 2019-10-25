@@ -2,6 +2,9 @@
 #include <bits/stdc++.h>
 #include "defines.h"
 #include "util.h"
+#include "store.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 void RoomCollection::order() {
 	sort(rooms.begin(), rooms.end(), [](Room* r1, Room* r2){
@@ -113,6 +116,30 @@ void RoomCollection::writeToFiles() {
 			fclose(f);
 		}
 	}
+	if (store->haveDirty()) {
+		store->flush();
+		store->resetDirty();
+	}
+}
+
+void RoomCollection::readFromFiles() {
+	FILE* fp = fopen("roomlist", "r");
+	if (!fp) {
+		return;
+	}
+	char line[255];
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		line[strcspn(line, "\n")] = '\0'; // remove the trailing \n
+		//printf_top("Loading room %s\n", line);
+		FILE* f = fopen(("rooms/" + urlencode(line)).c_str(), "rb");
+		if (f) {
+			Room* room = new Room(f);
+			rooms.push_back(room);
+			fclose(f);
+		}
+	}
+	fclose(fp);
+	dirtyOrder = true;
 }
 
 RoomCollection* roomCollection = new RoomCollection;

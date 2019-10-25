@@ -3,6 +3,32 @@
 #include "util.h"
 #include "defines.h"
 
+enum struct EventFileField: u8 {
+	type,
+	sender,
+	eventId,
+	originServerTs,
+	messageMsgtype,
+	messageBody,
+	messageEditEventId,
+	memberInfoDisplayname,
+	memberInfoAvatarUrl,
+	memberStateKey,
+	memberMembership,
+	roomName,
+	roomTopic,
+	roomAvatar,
+	redacts,
+	
+	end = 0xFF,
+};
+
+Event::Event(FILE* fp) {
+	readFromFile(fp);
+}
+
+#define D if(0)
+
 Event::Event(json_t* event) {
 	type = EventType::invalid;
 	const char* typeMaybe = json_object_get_string_value(event, "type");
@@ -179,6 +205,9 @@ Event::Event(json_t* event) {
 
 Event::~Event() {
 	switch(type) {
+		case EventType::invalid:
+			// do nothing
+			break;
 		case EventType::m_room_message:
 			delete message;
 			break;
@@ -213,6 +242,9 @@ std::string Event::getDisplayName(std::string id) {
 
 void Event::print() {
 	switch (type) {
+		case EventType::invalid:
+			// do nothing
+			break;
 		case EventType::m_room_message: {
 			std::string displayname = getDisplayName(sender);
 			std::string body = message->body;
@@ -279,9 +311,173 @@ void Event::print() {
 			printf_top("\x1b[33m%s\x1b[0m changed the icon of the room\n", senderDisplay.c_str());
 			break;
 		}
+		case EventType::m_room_redaction:
+			// do nothing, unprintable
+			break;
 	}
 }
 
 bool Event::isValid() {
 	return type != EventType::invalid;
+}
+
+void Event::writeToFile(FILE* fp) {
+	file_write_obj(EventFileField::type, fp);
+	file_write_obj(type, fp);
+	
+	file_write_obj(EventFileField::sender, fp);
+	file_write_string(sender, fp);
+	
+	file_write_obj(EventFileField::eventId, fp);
+	file_write_string(eventId, fp);
+	
+	file_write_obj(EventFileField::originServerTs, fp);
+	file_write_obj(originServerTs, fp);
+	
+	switch (type) {
+		case EventType::invalid:
+			// do nothing
+			break;
+		case EventType::m_room_message:
+			file_write_obj(EventFileField::messageMsgtype, fp);
+			file_write_obj(message->msgtype, fp);
+			
+			file_write_obj(EventFileField::messageBody, fp);
+			file_write_string(message->body, fp);
+			
+			file_write_obj(EventFileField::messageEditEventId, fp);
+			file_write_string(message->editEventId, fp);
+			break;
+		case EventType::m_room_member:
+			file_write_obj(EventFileField::memberInfoDisplayname, fp);
+			file_write_string(member->info.displayname, fp);
+			
+			file_write_obj(EventFileField::memberInfoAvatarUrl, fp);
+			file_write_string(member->info.avatarUrl, fp);
+			
+			file_write_obj(EventFileField::memberStateKey, fp);
+			file_write_string(member->stateKey, fp);
+			
+			file_write_obj(EventFileField::memberMembership, fp);
+			file_write_obj(member->membership, fp);
+			break;
+		case EventType::m_room_name:
+			file_write_obj(EventFileField::roomName, fp);
+			file_write_string(roomName->name, fp);
+			break;
+		case EventType::m_room_topic:
+			file_write_obj(EventFileField::roomTopic, fp);
+			file_write_string(roomTopic->topic, fp);
+			break;
+		case EventType::m_room_avatar:
+			file_write_obj(EventFileField::roomAvatar, fp);
+			file_write_string(roomAvatar->avatarUrl, fp);
+			break;
+		case EventType::m_room_redaction:
+			file_write_obj(EventFileField::redacts, fp);
+			file_write_string(redaction->redacts, fp);
+			break;
+	}
+	file_write_obj(EventFileField::end, fp);
+}
+
+void Event::readFromFile(FILE* fp) {
+	D printf_top("--------\n");
+	EventFileField field;
+	bool done = false;
+	while (file_read_obj(&field, fp)) {
+		D printf_top("event field: %d\n", field);
+		switch(field) {
+			case EventFileField::type:
+				file_read_obj(&type, fp);
+				D printf_top("type: %d\n", type);
+				switch (type) {
+					case EventType::invalid:
+						// do nothing
+						break;
+					case EventType::m_room_message:
+						message = new EventRoomMessage;
+						break;
+					case EventType::m_room_member:
+						member = new EventRoomMember;
+						break;
+					case EventType::m_room_name:
+						roomName = new EventRoomName;
+						break;
+					case EventType::m_room_topic:
+						roomTopic = new EventRoomTopic;
+						break;
+					case EventType::m_room_avatar:
+						roomAvatar = new EventRoomAvatar;
+						break;
+					case EventType::m_room_redaction:
+						redaction = new EventRoomRedaction;
+						break;
+				}
+				break;
+			case EventFileField::sender:
+				sender = file_read_string(fp);
+				D printf_top("sender: %s\n", sender.c_str());
+				break;
+			case EventFileField::eventId:
+				eventId = file_read_string(fp);
+				D printf_top("eventId: %s\n", eventId.c_str());
+				break;
+			case EventFileField::originServerTs:
+				file_read_obj(&originServerTs, fp);
+				D printf_top("originServerTs: %llu\n", originServerTs);
+				break;
+			case EventFileField::messageMsgtype:
+				file_read_obj(&(message->msgtype), fp);
+				D printf_top("msgtype: %d\n", message->msgtype);
+				break;
+			case EventFileField::messageBody:
+				message->body = file_read_string(fp);
+				D printf_top("body: %s\n", message->body.c_str());
+				break;
+			case EventFileField::messageEditEventId:
+				message->editEventId = file_read_string(fp);
+				D printf_top("editEventId: %s\n", message->editEventId.c_str());
+				break;
+			case EventFileField::memberInfoDisplayname:
+				member->info.displayname = file_read_string(fp);
+				D printf_top("displayname: %s\n", member->info.displayname.c_str());
+				break;
+			case EventFileField::memberInfoAvatarUrl:
+				member->info.avatarUrl = file_read_string(fp);
+				D printf_top("avatarUrl: %s\n", member->info.avatarUrl.c_str());
+				break;
+			case EventFileField::memberStateKey:
+				member->stateKey = file_read_string(fp);
+				D printf_top("stateKey: %s\n", member->stateKey.c_str());
+				break;
+			case EventFileField::memberMembership:
+				file_read_obj(&(member->membership), fp);
+				D printf_top("membership: %d\n", member->membership);
+				break;
+			case EventFileField::roomName:
+				roomName->name = file_read_string(fp);
+				D printf_top("roomName: %s\n", roomName->name.c_str());
+				break;
+			case EventFileField::roomTopic:
+				roomTopic->topic = file_read_string(fp);
+				D printf_top("roomTopic: %s\n", roomTopic->topic.c_str());
+				break;
+			case EventFileField::roomAvatar:
+				roomAvatar->avatarUrl = file_read_string(fp);
+				D printf_top("avatarUrl: %s\n", roomAvatar->avatarUrl.c_str());
+				break;
+			case EventFileField::redacts:
+				redaction->redacts = file_read_string(fp);
+				D printf_top("redacts: %s\n", redaction->redacts.c_str());
+				break;
+			case EventFileField::end:
+				done = true;
+				break;
+		}
+		if (done) {
+			break;
+		}
+	}
+	D printf_top("event done\n");
 }
