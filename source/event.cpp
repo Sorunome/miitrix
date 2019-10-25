@@ -194,6 +194,9 @@ Event::~Event() {
 		case EventType::m_room_avatar:
 			delete roomAvatar;
 			break;
+		case EventType::m_room_redaction:
+			delete redaction;
+			break;
 	}
 }
 
