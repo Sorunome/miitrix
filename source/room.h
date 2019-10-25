@@ -16,7 +16,7 @@ private:
 	std::string avatarUrl;
 	std::string roomId;
 	std::string canonicalAlias;
-	u32 lastMsg = 0;
+	u64 lastMsg = 0;
 	std::vector<Event*> events;
 	std::map<std::string, Matrix::MemberInfo> members;
 	bool dirty = true;
@@ -32,7 +32,7 @@ public:
 	std::string getDisplayName();
 	void addEvent(Event* msg);
 	void addMember(std::string mxid, Matrix::MemberInfo m);
-	u32 getLastMsg();
+	u64 getLastMsg();
 	void setCanonicalAlias(std::string alias);
 	bool haveDirty();
 	bool haveDirtyInfo();

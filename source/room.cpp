@@ -155,7 +155,7 @@ void Room::addMember(std::string mxid, Matrix::MemberInfo m) {
 	dirtyInfo = true;
 }
 
-u32 Room::getLastMsg() {
+u64 Room::getLastMsg() {
 	return lastMsg;
 }
 

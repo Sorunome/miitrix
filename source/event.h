@@ -73,7 +73,7 @@ public:
 	EventType type;
 	std::string sender;
 	std::string eventId;
-	u32 originServerTs;
+	u64 originServerTs;
 	
 	union {
 		EventRoomMessage* message;
