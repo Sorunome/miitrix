@@ -10,6 +10,9 @@ void Store::init() {
 	if (stat("/miitrix", &st) == -1) {
 		mkdir("/miitrix", 0700);
 	}
+	if (stat("/miitrix/rooms", &st) == -1) {
+		mkdir("/miitrix/rooms", 0700);
+	}
 	chdir("/miitrix");
 }
 

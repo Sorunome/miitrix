@@ -1,5 +1,3 @@
-#include "main.h"
-
 #include <3ds.h>
 #include <stdio.h>
 #include <matrixclient.h>
@@ -14,12 +12,11 @@
 #include "room.h"
 #include "defines.h"
 #include "request.h"
+#include "roomcollection.h"
 
 PrintConsole* topScreenConsole;
 PrintConsole* bottomScreenConsole;
 
-std::vector<Room*> joinedRooms;
-bool renderRooms = true;
 bool renderRoomDisplay = true;
 Room* currentRoom;
 
@@ -32,54 +29,25 @@ State state = State::roomPicking;
 Matrix::Client* client;
 Store store;
 
-int joinedRoomIndex(std::string roomId) {
-	for (u32 i = 0; i != joinedRooms.size(); i++) {
-		if (joinedRooms[i]->getId() == roomId) {
-			return i;
-		}
-	}
-	return -1;
-}
-
-bool joinedRoomsSortFunc(Room* r1, Room* r2) {
-	return r1->getLastMsg() > r2->getLastMsg();
-}
-
 void sync_new_event(std::string roomId, json_t* event) {
-	if (joinedRoomIndex(roomId) == -1) {
-		// room isn't found, let's fetch it
-		joinedRooms.push_back(new Room({"", "", ""}, roomId));
-		renderRooms = true;
-	}
+	roomCollection->ensureExists(roomId);
 	Event* evt = new Event(event);
 	if (!evt->isValid()) {
 		delete evt;
 		return;
 	}
-	int ix = joinedRoomIndex(roomId);
-	if (ix != -1) {
-		joinedRooms[ix]->addEvent(evt);
+	Room* room = roomCollection->get(roomId);
+	if (room) {
+		room->addEvent(evt);
 	}
 }
 
 void sync_leave_room(std::string roomId, json_t* event) {
-	int ix = joinedRoomIndex(roomId);
-	if (ix != -1) {
-		delete joinedRooms[ix];
-		joinedRooms.erase(joinedRooms.begin() + ix);
-	}
-	renderRooms = true;
+	roomCollection->remove(roomId);
 }
 
 void sync_room_info(std::string roomId, Matrix::RoomInfo roomInfo) {
-	
-	int ix = joinedRoomIndex(roomId);
-	if (ix == -1) {
-		joinedRooms.push_back(new Room(roomInfo, roomId));
-	} else {
-		joinedRooms[ix]->updateInfo(roomInfo);
-	}
-	renderRooms = true;
+	roomCollection->setInfo(roomId, roomInfo);
 }
 
 std::string getMessage() {
@@ -125,27 +93,27 @@ std::string getPassword() {
 	return mybuf;
 }
 
-void loadRoom(Room* room) {
-	printf_top("Loading room %s...\n", room->getDisplayName().c_str());
+void loadRoom() {
+	printf_top("Loading room %s...\n", currentRoom->getDisplayName().c_str());
 	renderRoomDisplay = true;
 	state = State::roomDisplaying;
-	currentRoom = room;
 	printf_top("==================================================\n");
-	room->printEvents();
+	currentRoom->printEvents();
 }
 
 int roomPickerTop = 0;
 int roomPickerItem = 0;
 void roomPicker() {
 	u32 kDown = hidKeysDown();
+	bool renderRooms = false;
 	if (kDown & KEY_DOWN || kDown & KEY_RIGHT) {
 		if (kDown & KEY_DOWN) {
 			roomPickerItem++;
 		} else {
 			roomPickerItem += 25;
 		}
-		if (roomPickerItem >= joinedRooms.size()) {
-			roomPickerItem = joinedRooms.size() - 1;
+		if (roomPickerItem >= roomCollection->size()) {
+			roomPickerItem = roomCollection->size() - 1;
 		}
 		while (roomPickerItem - roomPickerTop > 29) {
 			roomPickerTop++;
@@ -167,50 +135,24 @@ void roomPicker() {
 		renderRooms = true;
 	}
 	if (kDown & KEY_A) {
-		loadRoom(joinedRooms[roomPickerItem]);
+		currentRoom = roomCollection->getByIndex(roomPickerItem);
+		if (currentRoom) {
+			loadRoom();
+		}
 		return;
 	}
-	bool sortRooms = false;
-	for (auto const& room: joinedRooms) {
-		if (room->haveDirtyOrder() || room->haveDirtyInfo()) {
-			sortRooms = true;
-		}
-		room->resetDirtyInfo();
-		room->resetDirtyOrder();
-	}
-	if (sortRooms) {
-		sort(joinedRooms.begin(), joinedRooms.end(), joinedRoomsSortFunc);
-		renderRooms = true;
-	}
-	if (!renderRooms) {
-		return;
-	}
-//	printf_top("%d %d\n", roomPickerTop, roomPickerItem);
-	printf_bottom("\x1b[2J");
-	renderRooms = false;
-	printf_bottom("\x1b[%d;1H>", roomPickerItem - roomPickerTop + 1);
-	for (u8 i = 0; i < 30; i++) {
-		if (i + roomPickerTop >= joinedRooms.size()) {
-			break;
-		}
-		Room* room = joinedRooms[i + roomPickerTop];
-		char name[40];
-		strncpy(name, room->getDisplayName().c_str(), 39);
-		name[39] = '\0';
-		printf_bottom("\x1b[%d;2H%s", i + 1, name);
-	}
+	roomCollection->maybePrintPicker(roomPickerTop, roomPickerItem, renderRooms);
 }
 
 void displayRoom() {
 	if (currentRoom->haveDirty()) {
 		currentRoom->printEvents();
-		currentRoom->resetDirty();
 	}
 	u32 kDown = hidKeysDown();
 	if (kDown & KEY_B) {
 		state = State::roomPicking;
-		renderRooms = true;
 		printf_top("==================================================\n");
+		roomCollection->maybePrintPicker(roomPickerTop, roomPickerItem, true);
 		return;
 	}
 	if (kDown & KEY_A) {
@@ -225,7 +167,6 @@ void displayRoom() {
 	printf_bottom("\x1b[2J");
 	renderRoomDisplay = false;
 	currentRoom->printInfo();
-	currentRoom->resetDirtyInfo();
 	printf_bottom("\nPress A to send a message\nPress B to go back\n");
 }
 
@@ -336,6 +277,8 @@ int main(int argc, char** argv) {
 			}
 			break; // break in order to return to hbmenu
 		}
+		roomCollection->writeToFiles();
+		roomCollection->resetAllDirty();
 		// Flush and swap framebuffers
 		gfxFlushBuffers();
 		gfxSwapBuffers();

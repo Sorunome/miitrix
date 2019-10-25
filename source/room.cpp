@@ -1,8 +1,24 @@
 #include "room.h"
 #include "defines.h"
 #include "request.h"
+#include "util.h"
 
 extern Matrix::Client* client;
+
+enum struct RoomFileField: u8 {
+	name,
+	topic,
+	avatarUrl,
+	roomId,
+	canonicalAlias,
+	lastMsg,
+	events,
+	members,
+};
+
+Room::Room(FILE* fp) {
+	readFromFile(fp);
+}
 
 Room::Room(Matrix::RoomInfo info, std::string _roomId) {
 	name = info.name;
@@ -199,4 +215,62 @@ void Room::updateInfo(Matrix::RoomInfo info) {
 	avatarUrl = info.avatarUrl;
 	dirty = true;
 	dirtyInfo = true;
+}
+
+void Room::writeToFile(FILE* fp) {
+	file_write_obj(RoomFileField::name, fp);
+	file_write_string(name, fp);
+	
+	file_write_obj(RoomFileField::topic, fp);
+	file_write_string(topic, fp);
+	
+	file_write_obj(RoomFileField::avatarUrl, fp);
+	file_write_string(avatarUrl, fp);
+	
+	file_write_obj(RoomFileField::roomId, fp);
+	file_write_string(roomId, fp);
+	
+	file_write_obj(RoomFileField::canonicalAlias, fp);
+	file_write_string(canonicalAlias, fp);
+	
+	file_write_obj(RoomFileField::lastMsg, fp);
+	file_write_obj(lastMsg, fp);
+	
+	// TODO: events and members
+}
+
+void Room::readFromFile(FILE* fp) {
+	// first delete existing events and members
+	for (auto const& evt: events) {
+		delete evt;
+	}
+	events.clear();
+	members.clear();
+	
+	RoomFileField field;
+	while (file_read_obj(&field, fp)) {
+		switch(field) {
+			case RoomFileField::name:
+				name = file_read_string(fp);
+				break;
+			case RoomFileField::topic:
+				topic = file_read_string(fp);
+				break;
+			case RoomFileField::avatarUrl:
+				avatarUrl = file_read_string(fp);
+				break;
+			case RoomFileField::roomId:
+				roomId = file_read_string(fp);
+				break;
+			case RoomFileField::canonicalAlias:
+				canonicalAlias = file_read_string(fp);
+				break;
+			case RoomFileField::lastMsg:
+				file_read_obj(&lastMsg, fp);
+				break;
+		}
+	}
+	dirty = true;
+	dirtyInfo = true;
+	dirtyOrder = true;
 }

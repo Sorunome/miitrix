@@ -1,6 +1,6 @@
 #include "request.h"
 #include <matrixclient.h>
-#include "main.h"
+#include "roomcollection.h"
 
 extern Matrix::Client* client;
 
@@ -14,9 +14,9 @@ void Request::loop() {
 			RequestGetMemberInfoQueue reqInfo = getMemberInfoQueue.front();
 			getMemberInfoQueue.pop();
 			Matrix::MemberInfo info = client->getMemberInfo(reqInfo.mxid, reqInfo.roomId);
-			int ix = joinedRoomIndex(reqInfo.roomId);
-			if (ix != -1) {
-				joinedRooms[ix]->addMember(reqInfo.mxid, info);
+			Room* room = roomCollection->get(reqInfo.roomId);
+			if (room) {
+				room->addMember(reqInfo.mxid, info);
 			}
 		}
 
@@ -32,13 +32,13 @@ void Request::loop() {
 			std::string roomId = getExtraRoomInfoQueue.front();
 			getExtraRoomInfoQueue.pop();
 			Matrix::ExtraRoomInfo info = client->getExtraRoomInfo(roomId);
-			int ix = joinedRoomIndex(roomId);
-			if (ix != -1) {
-				joinedRooms[ix]->setCanonicalAlias(info.canonicalAlias);
+			Room* room = roomCollection->get(roomId);
+			if (room) {
+				room->setCanonicalAlias(info.canonicalAlias);
 				for (auto const& m: info.members) {
 					std::string mxid = m.first;
 					Matrix::MemberInfo minfo = m.second;
-					joinedRooms[ix]->addMember(mxid, minfo);
+					room->addMember(mxid, minfo);
 				}
 			}
 		}

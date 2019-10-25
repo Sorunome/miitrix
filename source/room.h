@@ -24,6 +24,7 @@ private:
 	bool dirtyOrder = true;
 	bool requestedExtraInfo = false;
 public:
+	Room(FILE* fp);
 	Room(Matrix::RoomInfo info, std::string roomId);
 	~Room();
 	void printEvents();
@@ -42,6 +43,8 @@ public:
 	void resetDirtyOrder();
 	std::string getId();
 	void updateInfo(Matrix::RoomInfo info);
+	void writeToFile(FILE* fp);
+	void readFromFile(FILE* fp);
 };
 
 #endif // _ROOM_H_
