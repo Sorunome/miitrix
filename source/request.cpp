@@ -42,6 +42,13 @@ void Request::loop() {
 				}
 			}
 		}
+		
+		// next handle read receipts
+		if (sendReadReceiptQueue.size()) {
+			RequestSendReadReceiptQueue req = sendReadReceiptQueue.front();
+			sendReadReceiptQueue.pop();
+			client->sendReadReceipt(req.roomId, req.eventId);
+		}
 
 		svcSleepThread((u64)1000000ULL * (u64)200);
 	}
@@ -84,6 +91,13 @@ void Request::sendText(std::string roomId, std::string message) {
 	sendTextQueue.push({
 		roomId: roomId,
 		message: message,
+	});
+}
+
+void Request::sendReadReceipt(std::string roomId, std::string eventId) {
+	sendReadReceiptQueue.push({
+		roomId: roomId,
+		eventId: eventId,
 	});
 }
 

@@ -75,6 +75,8 @@ public:
 	std::string eventId;
 	u64 originServerTs;
 	
+	bool read = false;
+	
 	union {
 		EventRoomMessage* message;
 		EventRoomMember* member;

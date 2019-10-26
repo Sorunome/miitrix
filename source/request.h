@@ -15,11 +15,17 @@ struct RequestSendTextQueue {
 	std::string message;
 };
 
+struct RequestSendReadReceiptQueue {
+	std::string roomId;
+	std::string eventId;
+};
+
 class Request {
 private:
 	std::queue<RequestGetMemberInfoQueue> getMemberInfoQueue;
 	std::queue<RequestSendTextQueue> sendTextQueue;
 	std::queue<std::string> getExtraRoomInfoQueue;
+	std::queue<RequestSendReadReceiptQueue> sendReadReceiptQueue;
 	bool stopLooping = false;
 	bool isLooping = false;
 	Thread loopThread;
@@ -30,6 +36,7 @@ public:
 	void getMemberInfo(std::string mxid, std::string roomId);
 	void getExtraRoomInfo(std::string roomId);
 	void sendText(std::string roomId, std::string message);
+	void sendReadReceipt(std::string roomId, std::string eventId);
 };
 
 extern Request* request;

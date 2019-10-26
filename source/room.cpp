@@ -40,8 +40,14 @@ Room::~Room() {
 
 void Room::printEvents() {
 	printf_top("\x1b[2J");
+	Event* lastEvt = NULL;
 	for (auto const& evt: events) {
 		evt->print();
+		lastEvt = evt;
+	}
+	if (lastEvt && !lastEvt->read) {
+		request->sendReadReceipt(roomId, lastEvt->eventId);
+		lastEvt->read = true;
 	}
 }
 
