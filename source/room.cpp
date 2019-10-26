@@ -2,6 +2,7 @@
 #include "defines.h"
 #include "request.h"
 #include "util.h"
+#include <bits/stdc++.h>
 
 extern Matrix::Client* client;
 
@@ -134,14 +135,9 @@ void Room::addEvent(Event* evt) {
 	evt->setRoom(this);
 	// first add the message to the internal cache
 	events.push_back(evt);
-	// clear unneeded stuffs
-	while (events.size() > ROOM_MAX_BACKLOG) {
-		delete events[0];
-		events.erase(events.begin());
-	}
 	
 	// update the lastMsg if it is a text message
-	if (type == EventType::m_room_message) {
+	if (type == EventType::m_room_message && evt->originServerTs > lastMsg) {
 		lastMsg = evt->originServerTs;
 		dirtyOrder = true;
 	}
@@ -164,8 +160,27 @@ void Room::addEvent(Event* evt) {
 		avatarUrl = evt->roomAvatar->avatarUrl;
 		dirtyInfo = true;
 	}
+	
+	// sort the events
+	sort(events.begin(), events.end(), [](Event* e1, Event* e2) {
+		return e1->originServerTs < e2->originServerTs;
+	});
+	
+	// clear unneeded stuffs
+	while (events.size() > ROOM_MAX_BACKLOG) {
+		delete events[0];
+		events.erase(events.begin());
+	}
 
 	// and finally set this dirty
+	dirty = true;
+}
+
+void Room::clearEvents() {
+	for (auto const& evt: events) {
+		delete evt;
+	}
+	events.clear();
 	dirty = true;
 }
 
@@ -222,23 +237,33 @@ void Room::updateInfo(Matrix::RoomInfo info) {
 }
 
 void Room::writeToFile(FILE* fp) {
-	file_write_obj(RoomFileField::name, fp);
-	file_write_string(name, fp);
+	if (name != "") {
+		file_write_obj(RoomFileField::name, fp);
+		file_write_string(name, fp);
+	}
 	
-	file_write_obj(RoomFileField::topic, fp);
-	file_write_string(topic, fp);
+	if (topic != "") {
+		file_write_obj(RoomFileField::topic, fp);
+		file_write_string(topic, fp);
+	}
 	
-	file_write_obj(RoomFileField::avatarUrl, fp);
-	file_write_string(avatarUrl, fp);
+	if (avatarUrl != "") {
+		file_write_obj(RoomFileField::avatarUrl, fp);
+		file_write_string(avatarUrl, fp);
+	}
 	
 	file_write_obj(RoomFileField::roomId, fp);
 	file_write_string(roomId, fp);
 	
-	file_write_obj(RoomFileField::canonicalAlias, fp);
-	file_write_string(canonicalAlias, fp);
+	if (canonicalAlias != "") {
+		file_write_obj(RoomFileField::canonicalAlias, fp);
+		file_write_string(canonicalAlias, fp);
+	}
 	
-	file_write_obj(RoomFileField::lastMsg, fp);
-	file_write_obj(lastMsg, fp);
+	if (lastMsg) {
+		file_write_obj(RoomFileField::lastMsg, fp);
+		file_write_obj(lastMsg, fp);
+	}
 	
 	u32 numEvents = events.size();
 	if (numEvents) {
@@ -284,16 +309,13 @@ void Room::writeToFile(FILE* fp) {
 
 void Room::readFromFile(FILE* fp) {
 	// first delete existing events and members
-	for (auto const& evt: events) {
-		delete evt;
-	}
-	events.clear();
+	clearEvents();
 	members.clear();
 	
 	RoomFileField field;
 	bool done = false;
 	while (file_read_obj(&field, fp)) {
-		D printf_top("room field: %d\n", field);
+		D printf_top("room field: %d\n", (u8)field);
 		switch(field) {
 			case RoomFileField::name:
 				name = file_read_string(fp);

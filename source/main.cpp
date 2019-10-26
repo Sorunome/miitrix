@@ -49,6 +49,13 @@ void sync_room_info(std::string roomId, Matrix::RoomInfo roomInfo) {
 	roomCollection->setInfo(roomId, roomInfo);
 }
 
+void sync_room_limited(std::string roomId, std::string nextBatch) {
+	Room* room = roomCollection->get(roomId);
+	if (room) {
+		room->clearEvents();
+	}
+}
+
 std::string getMessage() {
 	SwkbdState swkbd;
 	char mybuf[1024];
@@ -225,14 +232,19 @@ bool setupAcc() {
 	return true;
 }
 
+void clearCache() {
+	printf_top("Clearing cache...");
+	store->delVar("synctoken");
+	store->delVar("roomlist");
+	remove_directory("rooms");
+}
+
 void logout() {
 	printf_top("Logging out...");
 	client->logout();
 	store->delVar("token");
 	store->delVar("hsUrl");
-	store->delVar("synctoken");
-	store->delVar("roomlist");
-	remove_directory("rooms");
+	clearCache();
 }
 
 int main(int argc, char** argv) {
@@ -254,6 +266,7 @@ int main(int argc, char** argv) {
 	client->setEventCallback(&sync_new_event);
 	client->setLeaveRoomCallback(&sync_leave_room);
 	client->setRoomInfoCallback(&sync_room_info);
+	client->setRoomLimitedCallback(&sync_room_limited);
 	
 	printf_top("Loading channel list...\n");
 	/*
@@ -283,17 +296,20 @@ int main(int argc, char** argv) {
 			displayRoom();
 		}
 
-		//hidKeysDown returns information about which buttons have been just pressed (and they weren't in the previous frame)
+		roomCollection->writeToFiles();
+		roomCollection->resetAllDirty();
+		
 		u32 kDown = hidKeysDown();
-
 		if (kDown & KEY_START) {
-			if (hidKeysHeld() & KEY_B) {
+			u32 kHeld = hidKeysHeld();
+			if (kHeld & KEY_X) {
+				clearCache();
+			}
+			if (kHeld & KEY_B) {
 				logout();
 			}
 			break; // break in order to return to hbmenu
 		}
-		roomCollection->writeToFiles();
-		roomCollection->resetAllDirty();
 		// Flush and swap framebuffers
 		gfxFlushBuffers();
 		gfxSwapBuffers();

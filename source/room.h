@@ -32,6 +32,7 @@ public:
 	std::string getMemberDisplayName(std::string mxid);
 	std::string getDisplayName();
 	void addEvent(Event* msg);
+	void clearEvents();
 	void addMember(std::string mxid, Matrix::MemberInfo m);
 	u64 getLastMsg();
 	void setCanonicalAlias(std::string alias);

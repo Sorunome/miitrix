@@ -345,8 +345,10 @@ void Event::writeToFile(FILE* fp) {
 			file_write_obj(EventFileField::messageBody, fp);
 			file_write_string(message->body, fp);
 			
-			file_write_obj(EventFileField::messageEditEventId, fp);
-			file_write_string(message->editEventId, fp);
+			if (message->editEventId != "") {
+				file_write_obj(EventFileField::messageEditEventId, fp);
+				file_write_string(message->editEventId, fp);
+			}
 			break;
 		case EventType::m_room_member:
 			file_write_obj(EventFileField::memberInfoDisplayname, fp);
@@ -386,11 +388,11 @@ void Event::readFromFile(FILE* fp) {
 	EventFileField field;
 	bool done = false;
 	while (file_read_obj(&field, fp)) {
-		D printf_top("event field: %d\n", field);
+		D printf_top("event field: %d\n", (u8)field);
 		switch(field) {
 			case EventFileField::type:
 				file_read_obj(&type, fp);
-				D printf_top("type: %d\n", type);
+				D printf_top("type: %d\n", (u8)type);
 				switch (type) {
 					case EventType::invalid:
 						// do nothing
@@ -429,7 +431,7 @@ void Event::readFromFile(FILE* fp) {
 				break;
 			case EventFileField::messageMsgtype:
 				file_read_obj(&(message->msgtype), fp);
-				D printf_top("msgtype: %d\n", message->msgtype);
+				D printf_top("msgtype: %d\n", (u8)message->msgtype);
 				break;
 			case EventFileField::messageBody:
 				message->body = file_read_string(fp);
@@ -453,7 +455,7 @@ void Event::readFromFile(FILE* fp) {
 				break;
 			case EventFileField::memberMembership:
 				file_read_obj(&(member->membership), fp);
-				D printf_top("membership: %d\n", member->membership);
+				D printf_top("membership: %d\n", (u8)member->membership);
 				break;
 			case EventFileField::roomName:
 				roomName->name = file_read_string(fp);
