@@ -162,7 +162,9 @@ void displayRoom() {
 		return;
 	}
 	if (kDown & KEY_A) {
+		request->setTyping(currentRoom->getId(), true);
 		std::string message = getMessage();
+		request->setTyping(currentRoom->getId(), false);
 		if (message != "") {
 			request->sendText(currentRoom->getId(), message);
 		}

@@ -49,7 +49,14 @@ void Request::loop() {
 			sendReadReceiptQueue.pop();
 			client->sendReadReceipt(req.roomId, req.eventId);
 		}
-
+		
+		// next handle typing
+		if (setTypingQueue.size()) {
+			RequestSetTypingQueue req = setTypingQueue.front();
+			setTypingQueue.pop();
+			client->setTyping(req.roomId, req.typing);
+		}
+		
 		svcSleepThread((u64)1000000ULL * (u64)200);
 	}
 }
@@ -98,6 +105,13 @@ void Request::sendReadReceipt(std::string roomId, std::string eventId) {
 	sendReadReceiptQueue.push({
 		roomId: roomId,
 		eventId: eventId,
+	});
+}
+
+void Request::setTyping(std::string roomId, bool typing) {
+	setTypingQueue.push({
+		roomId: roomId,
+		typing: typing,
 	});
 }
 
