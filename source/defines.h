@@ -8,4 +8,7 @@ extern PrintConsole* bottomScreenConsole;
 
 #define ROOM_MAX_BACKLOG 30
 
+#define DIRTY_QUEUE (u8)0x01
+#define DIRTY_FRAME (u8)0x02
+
 #endif // _DEFINES_H_

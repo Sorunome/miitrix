@@ -235,14 +235,14 @@ bool setupAcc() {
 }
 
 void clearCache() {
-	printf_top("Clearing cache...");
+	printf_top("Clearing cache...\n");
 	store->delVar("synctoken");
 	store->delVar("roomlist");
 	remove_directory("rooms");
 }
 
 void logout() {
-	printf_top("Logging out...");
+	printf_top("Logging out...\n");
 	client->logout();
 	store->delVar("token");
 	store->delVar("hsUrl");
@@ -291,6 +291,8 @@ int main(int argc, char** argv) {
 		//printf("%d\n", i++);
 		//Scan all the inputs. This should be done once for each frame
 		hidScanInput();
+
+		roomCollection->frameAllDirty();
 
 		if (state == State::roomPicking) {
 			roomPicker();

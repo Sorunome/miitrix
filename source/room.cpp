@@ -116,7 +116,7 @@ void Room::addEvent(Event* evt) {
 				e->message->body = evt->message->body;
 				e->message->msgtype = evt->message->msgtype;
 				delete evt;
-				dirty = true;
+				dirty |= DIRTY_QUEUE;
 				return;
 			}
 		}
@@ -130,7 +130,7 @@ void Room::addEvent(Event* evt) {
 				// okay, redact it
 				events.erase(it);
 				delete e;
-				dirty = true;
+				dirty |= DIRTY_QUEUE;
 				break;
 			}
 		}
@@ -145,7 +145,7 @@ void Room::addEvent(Event* evt) {
 	// update the lastMsg if it is a text message
 	if (type == EventType::m_room_message && evt->originServerTs > lastMsg) {
 		lastMsg = evt->originServerTs;
-		dirtyOrder = true;
+		dirtyOrder |= DIRTY_QUEUE;
 	}
 
 	// update room members accordingly
@@ -156,15 +156,15 @@ void Room::addEvent(Event* evt) {
 	// check if we have room specific changes
 	if (type == EventType::m_room_name) {
 		name = evt->roomName->name;
-		dirtyInfo = true;
+		dirtyInfo |= DIRTY_QUEUE;
 	}
 	if (type == EventType::m_room_topic) {
 		topic = evt->roomTopic->topic;
-		dirtyInfo = true;
+		dirtyInfo |= DIRTY_QUEUE;
 	}
 	if (type == EventType::m_room_avatar) {
 		avatarUrl = evt->roomAvatar->avatarUrl;
-		dirtyInfo = true;
+		dirtyInfo |= DIRTY_QUEUE;
 	}
 	
 	// sort the events
@@ -179,7 +179,7 @@ void Room::addEvent(Event* evt) {
 	}
 
 	// and finally set this dirty
-	dirty = true;
+	dirty |= DIRTY_QUEUE;
 }
 
 void Room::clearEvents() {
@@ -187,13 +187,13 @@ void Room::clearEvents() {
 		delete evt;
 	}
 	events.clear();
-	dirty = true;
+	dirty |= DIRTY_QUEUE;
 }
 
 void Room::addMember(std::string mxid, Matrix::MemberInfo m) {
 	members[mxid] = m;
-	dirty = true;
-	dirtyInfo = true;
+	dirty |= DIRTY_QUEUE;
+	dirtyInfo |= DIRTY_QUEUE;
 }
 
 u64 Room::getLastMsg() {
@@ -202,8 +202,8 @@ u64 Room::getLastMsg() {
 
 void Room::setCanonicalAlias(std::string alias) {
 	canonicalAlias = alias;
-	dirty = true;
-	dirtyInfo = true;
+	dirty |= DIRTY_QUEUE;
+	dirtyInfo |= DIRTY_QUEUE;
 }
 
 bool Room::haveDirty() {
@@ -218,16 +218,25 @@ bool Room::haveDirtyOrder() {
 	return dirtyOrder;
 }
 
-void Room::resetDirty() {
-	dirty = false;
+void Room::frameAllDirty() {
+	if (dirty & DIRTY_QUEUE) {
+		dirty &= ~DIRTY_QUEUE;
+		dirty |= DIRTY_FRAME;
+	}
+	if (dirtyInfo & DIRTY_QUEUE) {
+		dirtyInfo &= ~DIRTY_QUEUE;
+		dirtyInfo |= DIRTY_FRAME;
+	}
+	if (dirtyOrder & DIRTY_QUEUE) {
+		dirtyOrder &= ~DIRTY_QUEUE;
+		dirtyOrder |= DIRTY_FRAME;
+	}
 }
 
-void Room::resetDirtyInfo() {
-	dirtyInfo = false;
-}
-
-void Room::resetDirtyOrder() {
-	dirtyOrder = false;
+void Room::resetAllDirty() {
+	dirty &= ~DIRTY_FRAME;
+	dirtyInfo &= ~DIRTY_FRAME;
+	dirtyOrder &= ~DIRTY_FRAME;
 }
 
 std::string Room::getId() {
@@ -238,8 +247,8 @@ void Room::updateInfo(Matrix::RoomInfo info) {
 	name = info.name;
 	topic = info.topic;
 	avatarUrl = info.avatarUrl;
-	dirty = true;
-	dirtyInfo = true;
+	dirty |= DIRTY_QUEUE;
+	dirtyInfo |= DIRTY_QUEUE;
 }
 
 void Room::writeToFile(FILE* fp) {
@@ -387,7 +396,7 @@ void Room::readFromFile(FILE* fp) {
 			break;
 		}
 	}
-	dirty = false;
-	dirtyInfo = true;
-	dirtyOrder = true;
+	dirty &= ~DIRTY_QUEUE;
+	dirtyInfo |= DIRTY_QUEUE;
+	dirtyOrder |= DIRTY_QUEUE;
 }

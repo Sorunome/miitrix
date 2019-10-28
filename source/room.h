@@ -6,6 +6,7 @@
 #include "event.h"
 #include <matrixclient.h>
 #include <map>
+#include "defines.h"
 
 class Event;
 
@@ -19,9 +20,9 @@ private:
 	u64 lastMsg = 0;
 	std::vector<Event*> events;
 	std::map<std::string, Matrix::MemberInfo> members;
-	bool dirty = true;
-	bool dirtyInfo = true;
-	bool dirtyOrder = true;
+	u8 dirty = DIRTY_QUEUE;
+	u8 dirtyInfo = DIRTY_QUEUE;
+	u8 dirtyOrder = DIRTY_QUEUE;
 	bool requestedExtraInfo = false;
 public:
 	Room(FILE* fp);
@@ -39,9 +40,8 @@ public:
 	bool haveDirty();
 	bool haveDirtyInfo();
 	bool haveDirtyOrder();
-	void resetDirty();
-	void resetDirtyInfo();
-	void resetDirtyOrder();
+	void frameAllDirty();
+	void resetAllDirty();
 	std::string getId();
 	void updateInfo(Matrix::RoomInfo info);
 	void writeToFile(FILE* fp);

@@ -37,7 +37,7 @@ void RoomCollection::ensureExists(std::string roomId) {
 		return; // nothing to do
 	}
 	rooms.push_back(new Room({"", "", ""}, roomId));
-	dirtyOrder = true;
+	dirtyOrder |= DIRTY_QUEUE;
 }
 
 void RoomCollection::setInfo(std::string roomId, Matrix::RoomInfo info) {
@@ -47,7 +47,7 @@ void RoomCollection::setInfo(std::string roomId, Matrix::RoomInfo info) {
 	} else {
 		rooms.push_back(new Room(info, roomId));
 	}
-	dirtyOrder = true;
+	dirtyOrder |= DIRTY_QUEUE;
 }
 
 void RoomCollection::remove(std::string roomId) {
@@ -56,7 +56,7 @@ void RoomCollection::remove(std::string roomId) {
 		if (room->getId() == roomId) {
 			rooms.erase(it);
 			delete room;
-			dirtyOrder = true;
+			dirtyOrder |= DIRTY_QUEUE;
 			break;
 		}
 	}
@@ -88,12 +88,20 @@ void RoomCollection::maybePrintPicker(int pickerTop, int pickerItem, bool overri
 	}
 }
 
-void RoomCollection::resetAllDirty() {
-	dirtyOrder = false;
+void RoomCollection::frameAllDirty() {
+	if (dirtyOrder & DIRTY_QUEUE) {
+		dirtyOrder &= ~DIRTY_QUEUE;
+		dirtyOrder |= DIRTY_FRAME;
+	}
 	for (auto const& room: rooms) {
-		room->resetDirty();
-		room->resetDirtyInfo();
-		room->resetDirtyOrder();
+		room->frameAllDirty();
+	}
+}
+
+void RoomCollection::resetAllDirty() {
+	dirtyOrder &= ~DIRTY_FRAME;
+	for (auto const& room: rooms) {
+		room->resetAllDirty();
 	}
 }
 

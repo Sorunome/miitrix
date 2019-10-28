@@ -5,12 +5,13 @@
 #include <vector>
 #include "room.h"
 #include <matrixclient.h>
+#include "defines.h"
 
 class RoomCollection {
 private:
 	std::vector<Room*> rooms;
 	void order();
-	bool dirtyOrder = true;
+	u8 dirtyOrder = DIRTY_QUEUE;
 public:
 	int size();
 	Room* get(std::string roomId);
@@ -19,6 +20,7 @@ public:
 	void setInfo(std::string roomId, Matrix::RoomInfo info);
 	void remove(std::string roomId);
 	void maybePrintPicker(int pickerTop, int pickerItem, bool override);
+	void frameAllDirty();
 	void resetAllDirty();
 	void writeToFiles();
 	void readFromFiles();
