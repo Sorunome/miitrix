@@ -214,19 +214,9 @@ bool setupAcc() {
 	std::string password = getPassword();
 
 	if (!client->login(username, password)) {
-		printf_top("Failed to log in! Press start to exit app...\n");
-		while(aptMainLoop()) {
-			hidScanInput();
-			u32 kDown = hidKeysDown();
-			if (kDown & KEY_START) break;
-			// Flush and swap framebuffers
-			gfxFlushBuffers();
-			gfxSwapBuffers();
-			//Wait for VBlank
-			gspWaitForVBlank();
-		}
 		return false;
 	}
+
 	userId = client->getUserId();
 	printf_top("Logged in as %s\n", userId.c_str());
 	store->setVar("hsUrl", homeserverUrl);
@@ -261,10 +251,31 @@ int main(int argc, char** argv) {
 
 	printf_top("Miitrix v0.0.0\n");
 	
-	if (!setupAcc()){
-		gfxExit();
-		return 0;
+	while (!setupAcc()) {
+		printf_top("Failed to log in!\n\n");
+		printf_top("Press START to exit.\n");
+		printf_top("Press SELECT to try again.\n\n");
+	
+		while (aptMainLoop()) {
+			hidScanInput();
+			u32 kDown = hidKeysDown();
+
+			if (kDown & KEY_START) {
+				gfxExit();
+				return 0;
+			}
+			if (kDown & KEY_SELECT) {
+				break;
+			}
+
+			// Flush and swap framebuffers
+			gfxFlushBuffers();
+			gfxSwapBuffers();
+			// Wait for VBlank
+			gspWaitForVBlank();
+		}
 	}
+
 	client->setEventCallback(&sync_new_event);
 	client->setLeaveRoomCallback(&sync_leave_room);
 	client->setRoomInfoCallback(&sync_room_info);
